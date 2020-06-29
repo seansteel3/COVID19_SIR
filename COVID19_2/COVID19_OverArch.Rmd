@@ -1,0 +1,235 @@
+---
+title: "COVID19_OverArch"
+author: "Sean Steele"
+date: "6/27/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+library(lubridate)
+library(data.table)
+US_state<- read.csv("TS_State_cases_6.26.csv") #import data
+```
+
+
+##Basic Cleaning
+```{r} 
+#### Basic Cleaning ####
+states<-as.data.frame(US_state)
+ #create copy of data
+#rename headers and created easier to work with data set
+states<-states%>%
+  rename(
+    state = Province_State,
+    county = Combined_Key,
+  )
+
+#drop useless columns, leave in county for future projects
+states<-states%>%
+  select(-UID, -iso2, -iso3, -code3, -FIPS, -Admin2, -Country_Region, - Lat, -Long_)
+
+#drop county for now
+states2<-states%>%
+  select(-county)
+```
+
+
+##State Selection
+```{r}
+### Select states of interest ###
+
+TX <- subset(states2, state == "Texas")
+AZ <- subset(states2, state == "Arizona")
+FL <- subset(states2, state == "Florida")
+CA <- subset(states2, state == "California")
+NV <- subset(states2, state == "Nevada")
+HI <- subset(states2, state == "Hawaii")
+VA <- subset(states2, state == "Virginia")
+NC <- subset(states2, state == "North Carolina")
+NY <- subset(states2, state == "New York")
+
+```
+
+
+##Preparing Data for Merge
+```{r}
+### combine county data into whole state data ###
+CountyCombine<- function(data){
+  data2<-as.data.frame(colSums(data[5:158])) #creates cumulative running totals 
+  data<-rownames_to_column(data2, "Dates")   #changes rownames into its own column for the dates
+  names(data)[names(data)== "colSums(data[5:158])"] <- "CumTotal"  #rename nonsense column
+  as.data.frame(data)  #previous line breaks data frame, restore data frame
+   }
+## create new DF for each state, and append a column for new cases ##
+#Texas
+TX2<-CountyCombine(TX)
+TX2$region<- c("Texas")
+TX2<-TX2[c("Dates", "region","CumTotal")] #flip column order
+#new cases and population adjustment for most recent (July 2019) census estimates
+TXpop<- 28995881 #total population
+TX100kpop<-TXpop/100000  #adjusted for per/100K
+TX2<-TX2%>%
+  mutate(NewCases = CumTotal - lag(CumTotal, default = first(CumTotal)), #new case
+         NewPerPop = NewCases/TX100kpop, #new case rate/100k
+         CumPerPop = CumTotal/TX100kpop) #total case rate/100k
+
+
+#Arizona
+AZ2<-CountyCombine(AZ)
+AZ2$region<- c("Arizona")
+AZ2<-AZ2[c("Dates", "region","CumTotal")] #flip column order
+#new cases and population adjustment for most recent (July 2019) census estimates
+AZpop<-  7278717 #total population
+AZ100kpop<-AZpop/100000  #adjusted for per/100K
+AZ2<-AZ2%>%
+  mutate(NewCases = CumTotal - lag(CumTotal, default = first(CumTotal)), #new case
+         NewPerPop = NewCases/AZ100kpop, #new case rate/100k
+         CumPerPop = CumTotal/AZ100kpop) #total case rate/100k
+
+
+#Florida
+FL2<-CountyCombine(FL)
+FL2$region<- c("Florida")
+FL2<-FL2[c("Dates", "region","CumTotal")] #flip column order
+#new cases and population adjustment for most recent (July 2019) census estimates
+FLpop<- 21477737 #total population
+FL100kpop<-FLpop/100000  #adjusted for per/100K
+FL2<-FL2%>%
+  mutate(NewCases = CumTotal - lag(CumTotal, default = first(CumTotal)), #new case
+         NewPerPop = NewCases/FL100kpop, #new case rate/100k
+         CumPerPop = CumTotal/FL100kpop) #total case rate/100k
+
+
+#California
+CA2<-CountyCombine(CA)
+CA2$region<- c("California")
+CA2<-CA2[c("Dates", "region","CumTotal")] #flip column order
+#new cases and population adjustment for most recent (July 2019) census estimates
+CApop<- 39512223 #total population
+CA100kpop<-CApop/100000  #adjusted for per/100K
+CA2<-CA2%>%
+  mutate(NewCases = CumTotal - lag(CumTotal, default = first(CumTotal)), #new case
+         NewPerPop = NewCases/CA100kpop, #new case rate/100k
+         CumPerPop = CumTotal/CA100kpop) #total case rate/100k
+
+
+#Nevada
+NV2<-CountyCombine(NV)
+NV2$region<- c("Nevada")
+NV2<-NV2[c("Dates", "region","CumTotal")] #flip column order
+#new cases and population adjustment for most recent (July 2019) census estimates
+NVpop<- 3080156 #total population
+NV100kpop<-NVpop/100000  #adjusted for per/100K
+NV2<-NV2%>%
+  mutate(NewCases = CumTotal - lag(CumTotal, default = first(CumTotal)), #new case
+         NewPerPop = NewCases/NV100kpop, #new case rate/100k
+         CumPerPop = CumTotal/NV100kpop) #total case rate/100k
+
+
+#Hawaii
+HI2<-CountyCombine(HI)
+HI2$region<- c("Hawaii")
+HI2<-HI2[c("Dates", "region","CumTotal")] #flip column order
+#new cases and population adjustment for most recent (July 2019) census estimates
+HIpop<- 1415872 #total population
+HI100kpop<-HIpop/100000  #adjusted for per/100K
+HI2<-HI2%>%
+  mutate(NewCases = CumTotal - lag(CumTotal, default = first(CumTotal)), #new case
+         NewPerPop = NewCases/HI100kpop, #new case rate/100k
+         CumPerPop = CumTotal/HI100kpop) #total case rate/100k
+
+
+#Virginia
+VA2<-CountyCombine(VA)
+VA2$region<- c("Virgina")
+VA2<-VA2[c("Dates", "region","CumTotal")] #flip column order
+#new cases and population adjustment for most recent (July 2019) census estimates
+VApop<- 8535519 #total population
+VA100kpop<-VApop/100000  #adjusted for per/100K
+VA2<-VA2%>%
+  mutate(NewCases = CumTotal - lag(CumTotal, default = first(CumTotal)), #new case
+         NewPerPop = NewCases/VA100kpop, #new case rate/100k
+         CumPerPop = CumTotal/VA100kpop) #total case rate/100k
+
+
+#North Carolina
+NC2<-CountyCombine(NC)
+NC2$region<- c("North Carolina")
+NC2<-NC2[c("Dates", "region","CumTotal")] #flip column order
+#new cases and population adjustment for most recent (July 2019) census estimates
+NCpop<- 10488084 #total population
+NC100kpop<-NCpop/100000  #adjusted for per/100K
+NC2<-NC2%>%
+  mutate(NewCases = CumTotal - lag(CumTotal, default = first(CumTotal)), #new case
+         NewPerPop = NewCases/NC100kpop, #new case rate/100k
+         CumPerPop = CumTotal/NC100kpop) #total case rate/100k
+
+
+#New York
+NY2<-CountyCombine(NY)
+NY2$region<- c("New York")
+NY2<-NY2[c("Dates", "region","CumTotal")] #flip column order
+#new cases and population adjustment for most recent (July 2019) census estimates
+NYpop<- 19453561 #total population
+NY100kpop<-NYpop/100000  #adjusted for per/100K
+NY2<-NY2%>%
+  mutate(NewCases = CumTotal - lag(CumTotal, default = first(CumTotal)), #new case
+         NewPerPop = NewCases/NY100kpop, #new case rate/100k
+         CumPerPop = CumTotal/NY100kpop) #total case rate/100k
+```
+
+
+##Merging Data into Large Data Frame
+```{r}
+## Create Big Data Frame ##
+
+## Wide Data ##
+Wide_State_Cum_Total<- merge(TX2, AZ2, by =c("Dates"))
+Wide_State_Cum_Total<- merge(Wide_State_Cum_Total, FL2, by =c("Dates"), all = TRUE)
+Wide_State_Cum_Total<- merge(Wide_State_Cum_Total, CA2, by =c("Dates"), all = TRUE)
+Wide_State_Cum_Total<- merge(Wide_State_Cum_Total, NV2, by =c("Dates"), all = TRUE)
+Wide_State_Cum_Total<- merge(Wide_State_Cum_Total, HI2, by =c("Dates"), all = TRUE)
+Wide_State_Cum_Total<- merge(Wide_State_Cum_Total, VA2, by =c("Dates"), all = TRUE)
+Wide_State_Cum_Total<- merge(Wide_State_Cum_Total, NC2, by =c("Dates"), all = TRUE)
+Wide_State_Cum_Total<- merge(Wide_State_Cum_Total, NY2, by =c("Dates"), all = TRUE)
+
+#drop the .x and .y from the merge function
+names(Wide_State_Cum_Total)[names(Wide_State_Cum_Total) == "region.x" ]<-"region"
+
+names(Wide_State_Cum_Total)[names(Wide_State_Cum_Total) == "region.y" ]<-"region"
+
+names(Wide_State_Cum_Total)[names(Wide_State_Cum_Total) == "CumTotal.x" ]<-"CumTotal"
+
+names(Wide_State_Cum_Total)[names(Wide_State_Cum_Total) == "CumTotal.y" ]<-"CumTotal"
+
+names(Wide_State_Cum_Total)[names(Wide_State_Cum_Total) == "NewCases.x" ]<-"NewCases"
+
+names(Wide_State_Cum_Total)[names(Wide_State_Cum_Total) == "NewCases.y" ]<-"NewCases"
+
+names(Wide_State_Cum_Total)[names(Wide_State_Cum_Total) == "NewPerPop.y" ]<-"NewPerPop"
+
+names(Wide_State_Cum_Total)[names(Wide_State_Cum_Total) == "NewPerPop.x" ]<-"NewPerPop"
+
+names(Wide_State_Cum_Total)[names(Wide_State_Cum_Total) == "CumPerPop.y" ]<-"CumPerPop"
+
+names(Wide_State_Cum_Total)[names(Wide_State_Cum_Total) == "CumPerPop.x" ]<-"CumPerPop"
+
+
+## Narrow Data ##
+Narrow_State_Cum_Total<-rbind(TX2,AZ2,FL2,CA2,NV2,HI2,VA2,NC2,NY2)
+
+
+
+
+
+```
+
+
+
+
+
