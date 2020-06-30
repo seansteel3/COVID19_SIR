@@ -1,0 +1,389 @@
+---
+title: "COVID19_OverArch"
+author: "Sean Steele"
+date: "6/27/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+library(lubridate)
+library(data.table)
+US_state<- read.csv("TS_State_cases_6.26.csv") #import data
+```
+
+
+##Basic Cleaning - Need not be run again
+```{r} 
+#### Basic Cleaning ####
+states<-as.data.frame(US_state)
+ #create copy of data
+#rename headers and created easier to work with data set
+states<-states%>%
+  rename(
+    state = Province_State,
+    county = Combined_Key,
+  )
+
+#drop useless columns, leave in county for future projects
+states<-states%>%
+  select(-UID, -iso2, -iso3, -code3, -FIPS, -Admin2, -Country_Region, - Lat, -Long_)
+
+#drop county for now
+states2<-states%>%
+  select(-county)
+```
+
+
+##State Selection - Need not be run again
+```{r}
+### Select states of interest ###
+
+TX <- subset(states2, state == "Texas")
+AZ <- subset(states2, state == "Arizona")
+FL <- subset(states2, state == "Florida")
+CA <- subset(states2, state == "California")
+NV <- subset(states2, state == "Nevada")
+HI <- subset(states2, state == "Hawaii")
+VA <- subset(states2, state == "Virginia")
+NC <- subset(states2, state == "North Carolina")
+NY <- subset(states2, state == "New York")
+
+```
+
+
+##Preparing Data for Merge
+```{r}
+### combine county data into whole state data ###
+CountyCombine<- function(data){
+  data2<-as.data.frame(colSums(data[5:158])) #creates cumulative running totals 
+  data<-rownames_to_column(data2, "Dates")   #changes rownames into its own column for the dates
+  names(data)[names(data)== "colSums(data[5:158])"] <- "CumTotal"  #rename nonsense column
+  as.data.frame(data)  #previous line breaks data frame, restore data frame
+   }
+## create new DF for each state, and append a column for new cases ##
+#Texas
+TX2<-CountyCombine(TX)
+TX2$region<- c("Texas")
+TX2<-TX2[c("Dates", "region","CumTotal")] #flip column order
+#new cases and population adjustment for most recent (July 2019) census estimates
+TXpop<- 28995881 #total population
+TX100kpop<-TXpop/100000  #adjusted for per/100K
+TX2<-TX2%>%
+  mutate(NewCases = CumTotal - lag(CumTotal, default = first(CumTotal)), #new case
+         NewPerPop = NewCases/TX100kpop, #new case rate/100k
+         CumPerPop = CumTotal/TX100kpop) #total case rate/100k
+
+
+#Arizona
+AZ2<-CountyCombine(AZ)
+AZ2$region<- c("Arizona")
+AZ2<-AZ2[c("Dates", "region","CumTotal")] #flip column order
+#new cases and population adjustment for most recent (July 2019) census estimates
+AZpop<-  7278717 #total population
+AZ100kpop<-AZpop/100000  #adjusted for per/100K
+AZ2<-AZ2%>%
+  mutate(NewCases = CumTotal - lag(CumTotal, default = first(CumTotal)), #new case
+         NewPerPop = NewCases/AZ100kpop, #new case rate/100k
+         CumPerPop = CumTotal/AZ100kpop) #total case rate/100k
+
+
+#Florida
+FL2<-CountyCombine(FL)
+FL2$region<- c("Florida")
+FL2<-FL2[c("Dates", "region","CumTotal")] #flip column order
+#new cases and population adjustment for most recent (July 2019) census estimates
+FLpop<- 21477737 #total population
+FL100kpop<-FLpop/100000  #adjusted for per/100K
+FL2<-FL2%>%
+  mutate(NewCases = CumTotal - lag(CumTotal, default = first(CumTotal)), #new case
+         NewPerPop = NewCases/FL100kpop, #new case rate/100k
+         CumPerPop = CumTotal/FL100kpop) #total case rate/100k
+
+
+#California
+CA2<-CountyCombine(CA)
+CA2$region<- c("California")
+CA2<-CA2[c("Dates", "region","CumTotal")] #flip column order
+#new cases and population adjustment for most recent (July 2019) census estimates
+CApop<- 39512223 #total population
+CA100kpop<-CApop/100000  #adjusted for per/100K
+CA2<-CA2%>%
+  mutate(NewCases = CumTotal - lag(CumTotal, default = first(CumTotal)), #new case
+         NewPerPop = NewCases/CA100kpop, #new case rate/100k
+         CumPerPop = CumTotal/CA100kpop) #total case rate/100k
+
+
+#Nevada
+NV2<-CountyCombine(NV)
+NV2$region<- c("Nevada")
+NV2<-NV2[c("Dates", "region","CumTotal")] #flip column order
+#new cases and population adjustment for most recent (July 2019) census estimates
+NVpop<- 3080156 #total population
+NV100kpop<-NVpop/100000  #adjusted for per/100K
+NV2<-NV2%>%
+  mutate(NewCases = CumTotal - lag(CumTotal, default = first(CumTotal)), #new case
+         NewPerPop = NewCases/NV100kpop, #new case rate/100k
+         CumPerPop = CumTotal/NV100kpop) #total case rate/100k
+
+
+#Hawaii
+HI2<-CountyCombine(HI)
+HI2$region<- c("Hawaii")
+HI2<-HI2[c("Dates", "region","CumTotal")] #flip column order
+#new cases and population adjustment for most recent (July 2019) census estimates
+HIpop<- 1415872 #total population
+HI100kpop<-HIpop/100000  #adjusted for per/100K
+HI2<-HI2%>%
+  mutate(NewCases = CumTotal - lag(CumTotal, default = first(CumTotal)), #new case
+         NewPerPop = NewCases/HI100kpop, #new case rate/100k
+         CumPerPop = CumTotal/HI100kpop) #total case rate/100k
+
+
+#Virginia
+VA2<-CountyCombine(VA)
+VA2$region<- c("Virgina")
+VA2<-VA2[c("Dates", "region","CumTotal")] #flip column order
+#new cases and population adjustment for most recent (July 2019) census estimates
+VApop<- 8535519 #total population
+VA100kpop<-VApop/100000  #adjusted for per/100K
+VA2<-VA2%>%
+  mutate(NewCases = CumTotal - lag(CumTotal, default = first(CumTotal)), #new case
+         NewPerPop = NewCases/VA100kpop, #new case rate/100k
+         CumPerPop = CumTotal/VA100kpop) #total case rate/100k
+
+
+#North Carolina
+NC2<-CountyCombine(NC)
+NC2$region<- c("North Carolina")
+NC2<-NC2[c("Dates", "region","CumTotal")] #flip column order
+#new cases and population adjustment for most recent (July 2019) census estimates
+NCpop<- 10488084 #total population
+NC100kpop<-NCpop/100000  #adjusted for per/100K
+NC2<-NC2%>%
+  mutate(NewCases = CumTotal - lag(CumTotal, default = first(CumTotal)), #new case
+         NewPerPop = NewCases/NC100kpop, #new case rate/100k
+         CumPerPop = CumTotal/NC100kpop) #total case rate/100k
+
+
+#New York
+NY2<-CountyCombine(NY)
+NY2$region<- c("New York")
+NY2<-NY2[c("Dates", "region","CumTotal")] #flip column order
+#new cases and population adjustment for most recent (July 2019) census estimates
+NYpop<- 19453561 #total population
+NY100kpop<-NYpop/100000  #adjusted for per/100K
+NY2<-NY2%>%
+  mutate(NewCases = CumTotal - lag(CumTotal, default = first(CumTotal)), #new case
+         NewPerPop = NewCases/NY100kpop, #new case rate/100k
+         CumPerPop = CumTotal/NY100kpop) #total case rate/100k
+
+## Write out csv files ##
+# write.csv(NY2,'NY2_test.csv')
+# write.csv(NC2,'NC2_test.csv')
+# write.csv(FL2, 'FL2_test.csv')
+# write.csv(TX2, 'TX2_test.csv')
+# write.csv(AZ2, 'AZ2_test.csv')
+# write.csv(CA2, 'CA2_test.csv')
+# write.csv(NV2, 'NV2_test.csv')
+# write.csv(VA2, 'VA2_test.csv')
+```
+
+##Check Cases discrepancies between testing data and NYTimes data
+```{r}
+## read in testing data sets, note HI missing since testing dataset was poor quality ##
+
+##these for OverallCaseDiff function, compares the testing data set with the NYtimes data in separate sets
+
+#just testing datasets
+# TX_testing<-read.csv("Texas_Testing.csv")
+# AZ_testing<-read.csv("Arizona_Testing.csv")
+# FL_testing<-read.csv("Florida_Testing.csv")
+# CA_testing<-read.csv("California_Testing.csv")
+# NV_testing<-read.csv("Nevada_Testing.csv")
+# VA_testing<-read.csv("Virginia_Testing.csv")
+# NC_testing<-read.csv("North_Carolina_Testing.csv")
+# NY_testing<-read.csv("New_York_Testing.csv")
+
+
+
+##Compare with testing data and NYtimes data merged
+
+#these are main individual state datasets
+TX2_testing<-read.csv("TX2_Test.csv")
+AZ2_testing<-read.csv("AZ2_Test.csv")
+FL2_testing<-read.csv("FL2_Test.csv")
+CA2_testing<-read.csv("CA2_Test.csv")
+NV2_testing<-read.csv("NV2_Test.csv")
+VA2_testing<-read.csv("VA2_Test.csv")
+NC2_testing<-read.csv("NC2_Test.csv")
+NY2_testing<-read.csv("NY2_Test.csv")
+
+
+
+#function calculates a paired Ttest for the mean of the difference between case totals in each data set
+TimeSeriesT <- function(data){
+  data$CaseDiff <-NA
+  for (i in 1:nrow(data)){
+    data$CaseDiff[i] = data$CumTotal[i] - data$Cases[i]
+  }
+  S <- sd(data$CaseDiff)
+  n<- nrow(data)
+  Test<- mean(data$CaseDiff)/(S/sqrt(n))
+  if (Test > 2){
+    return("Significant difference at the 0.05 level")
+  } else {
+    return ("No significant difference")
+  }
+  
+}
+
+#compute % difference in cases, and sig tests if testing is different
+OverallCaseDiff2<- function(data){
+  TestCase <- sum(data$Cases)
+  TrueCase <- sum(data$CumTotal)
+  casediff <- TrueCase - TestCase
+  casediffpercent <- (casediff/TrueCase)*100
+  ttest <- TimeSeriesT(data)
+  result <- list(casediff, casediffpercent, ttest)
+  return(result)
+}
+
+OverallCaseDiff2(TX2_testing) #% less than 2%: may be fine, T-test significant
+OverallCaseDiff2(AZ2_testing) #% less than 1%: may be fine, T-test significant
+OverallCaseDiff2(FL2_testing) #% less than 1%: may be fine, T-test significant
+OverallCaseDiff2(CA2_testing) #5% difference, T-test significant: do not use testing data
+OverallCaseDiff2(NV2_testing) #% less than 1%: may be fine, T-test significant
+OverallCaseDiff2(VA2_testing) #% less than 1%: may be fine, T-test insignificant: use testing data
+OverallCaseDiff2(NC2_testing) #% less than 1%: may be fine, T-test significant
+OverallCaseDiff2(NY2_testing) #% less than 1%: may be fine, T-test significant
+
+#See why significant comes up
+#same function, returns the differences
+TimeSeriesT2 <- function(data){
+  data$CaseDiff <-NA
+  for (i in 1:nrow(data)){
+    data$CaseDiff[i] = data$CumTotal[i] - data$Cases[i]
+  }
+  S <- sd(data$CaseDiff)
+  n<- nrow(data)
+  Test<- mean(data$CaseDiff)/(S/sqrt(n))
+  Test
+  data$CaseDiff
+  
+}
+
+TimeSeriesT2(TX2_testing)  #large discrepancies by the end, many whole way through: Don't use
+TimeSeriesT2(AZ2_testing)  #minimal discrepancies whole way through, suprised flagged as significant at all: Use
+TimeSeriesT2(FL2_testing)  #large discrepancies in middle, identical by end, usable if checking to not use bad dates
+TimeSeriesT2(CA2_testing)  #horrid discrepancies, do not use
+TimeSeriesT2(NV2_testing)  #perfectly fine: use
+TimeSeriesT2(VA2_testing)  #perfectly fine: use
+TimeSeriesT2(NC2_testing)  #moderate discrepancies whole way through, use with caution
+TimeSeriesT2(NY2_testing)  ##large discrepancies in middle, identical by end, usable if checking to not use bad dates
+
+
+
+# OverallCaseDiff<- function(data1, data2){
+#   Data1Cases<-sum(data1$Cases)
+#   Data2Cases<-sum(data2$CumTotal)
+#   casediff<-Data2Cases - Data1Cases #raw difference in overall cases
+#   casediffpercent <- casediff/Data2Cases #perent different from the main NYtimes dataset
+#   MeanData1Cases<-mean(data1$Cases)
+#   MeanData2Cases<-mean(data2$CumTotal)
+#   ttest<-t.test(data1$Cases, data2$CumTotal, conf.level = 0.95) # check this https://www.researchgate.net/post/how_do_we_measure_the_similarity_between_two_time_series_depending_on_magnitude
+#   #look at paul's response, develop good T-test to rigoriosly test if the two are different
+#   result <- list(casediff, casediffpercent, ttest, MeanData1Cases, MeanData2Cases)
+#   return(result)
+# }
+```
+
+
+
+##Merging Data into Large Data Frame
+```{r}
+## Create Big Data Frame ##
+
+## Wide Data ##
+Wide_State_Total<- merge(TX2_testing, AZ2_testing, by =c("Dates"))
+Wide_State_Total<- merge(Wide_State_Total, FL2_testing, by =c("Dates"), all = TRUE)
+Wide_State_Total<- merge(Wide_State_Total, CA2_testing, by =c("Dates"), all = TRUE)
+Wide_State_Total<- merge(Wide_State_Total, NV2_testing, by =c("Dates"), all = TRUE)
+Wide_State_Total<- merge(Wide_State_Total, HI2, by =c("Dates"), all = TRUE)
+Wide_State_Total<- merge(Wide_State_Total, VA2_testing, by =c("Dates"), all = TRUE)
+Wide_State_Total<- merge(Wide_State_Total, NC2_testing, by =c("Dates"), all = TRUE)
+Wide_State_Total<- merge(Wide_State_Total, NY2_testing, by =c("Dates"), all = TRUE)
+
+#drop the .x and .y from the merge function
+names(Wide_State_Total)[names(Wide_State_Total) == "region.x" ]<-"region"
+
+names(Wide_State_Total)[names(Wide_State_Total) == "region.y" ]<-"region"
+
+names(Wide_State_Total)[names(Wide_State_Total) == "CumTotal.x" ]<-"CumTotal"
+
+names(Wide_State_Total)[names(Wide_State_Total) == "CumTotal.y" ]<-"CumTotal"
+
+names(Wide_State_Total)[names(Wide_State_Total) == "NewCases.x" ]<-"NewCases"
+
+names(Wide_State_Total)[names(Wide_State_Total) == "NewCases.y" ]<-"NewCases"
+
+names(Wide_State_Total)[names(Wide_State_Total) == "NewPerPop.y" ]<-"NewPerPop"
+
+names(Wide_State_Total)[names(Wide_State_Total) == "NewPerPop.x" ]<-"NewPerPop"
+
+names(Wide_State_Total)[names(Wide_State_Total) == "CumPerPop.y" ]<-"CumPerPop"
+
+names(Wide_State_Total)[names(Wide_State_Total) == "CumPerPop.x" ]<-"CumPerPop"
+
+names(Wide_State_Total)[names(Wide_State_Total) == "X.x" ]<-"X"
+
+names(Wide_State_Total)[names(Wide_State_Total) == "X.y" ]<-"X"
+
+names(Wide_State_Total)[names(Wide_State_Total) == "New_Tests.x" ]<-"New_Tests"
+
+names(Wide_State_Total)[names(Wide_State_Total) == "New_Tests.y" ]<-"New_Tests"
+
+names(Wide_State_Total)[names(Wide_State_Total) == "Cases.x" ]<-"Cases"
+
+names(Wide_State_Total)[names(Wide_State_Total) == "Cases.y" ]<-"Cases"
+
+names(Wide_State_Total)[names(Wide_State_Total) == "Negative.x" ]<-"Negative"
+
+names(Wide_State_Total)[names(Wide_State_Total) == "Negative.y" ]<-"Negative"
+
+names(Wide_State_Total)[names(Wide_State_Total) == "Hospitalized.x" ]<-"Hospitalized"
+
+names(Wide_State_Total)[names(Wide_State_Total) == "Hospitalized.y" ]<-"Hospitalized"
+
+names(Wide_State_Total)[names(Wide_State_Total) == "Hospitalized.x" ]<-"Hospitalized"
+
+names(Wide_State_Total)[names(Wide_State_Total) == "Deaths.x" ]<-"Deaths"
+
+names(Wide_State_Total)[names(Wide_State_Total) == "Deaths.y" ]<-"Deaths"
+
+names(Wide_State_Total)[names(Wide_State_Total) == "Total_Tests.x" ]<-"Total_Tests"
+
+names(Wide_State_Total)[names(Wide_State_Total) == "Total_Tests.y" ]<-"Total_Tests"
+
+
+## Narrow Data ##
+Narrow_State_Total<-rbind(TX2_testing,AZ2_testing,FL2_testing,CA2_testing,NV2_testing,VA2_testing,NC2_testing,NY2_testing)
+
+write.csv(Narrow_State_Total, 'Narrow_State_Total.csv')
+
+write.csv(Wide_State_Total, 'Wide_State_Total.csv')
+
+
+
+
+
+```
+
+
+
+
+
