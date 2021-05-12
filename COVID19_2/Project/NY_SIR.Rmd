@@ -1,0 +1,957 @@
+---
+title: "NY_SIR_30days"
+author: "Sean Steele"
+date: "7/25/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+#Library Packages and Load NY data
+```{r}
+library(ggplot2)
+library(tidyverse)
+library(deSolve)
+library(pomp)
+library(R0)
+library(bbmle) #dplyr slice is masked
+library(FME)
+library(MASS)
+
+#Serial interval data from china for generation time estimation
+serial<-read.csv("serial_GT.csv")
+
+#new york data
+NYdata <- read.csv("NY2_Test.csv")
+NYdata<-NYdata%>%
+  mutate(NewDeaths = Deaths - lag(Deaths, default = first(Deaths))) #Add newdeaths
+
+
+```
+
+## Estimate Generation Time 
+```{r}
+#obtain serial intervals for each contact pair
+serial$serial_interval<-(serial$Seconday...symptom.onset.date -  serial$Index...symptom.onset.date)
+
+#note serial interval for 59 case pairs is less than 0 days and indicating asymptomatic transmission
+serial$serial_interval
+sum(serial$serial_interval < 0)
+
+#estimate generation time
+
+#R0 package requires positive serial intervals only, exclude 59 cases
+serial_interval_forR0 <- (serial$serial_interval[serial$serial_interval>=0])
+
+estGT<-est.GT(serial.interval = serial_interval_forR0, request.plot = TRUE)
+
+#serial interval estimated to be 5.296 sd:4.061 with weibull distribution
+#critical: note GT excludes likely asymptotic transmissions 
+```
+
+##Determine point of exponential growth
+```{r}
+#subset first 30 days
+NY30day<- as.data.frame(NYdata[38:67,])
+#X variable is day tracker, set to 1 where first case occurs
+NY30day$X<-NY30day$X-37
+
+#check cases are exponential and for outlier 
+plot(NY30day$X,log(NY30day$NewCases))
+#exclude outlier during semi-log regression to determine exponential cut off 
+NY30day1<-NY30day
+NY30day1$NewCases[14]<-NA
+
+#Check through day 22 where exponential growth clear on graph and compare to full 30 days
+# NY22day<-NY30day1[1:22,]
+# plot(NY22day$X,log(NY22day$NewCases))
+# 
+# reg1<-glm(data = NY30day1, log(NewCases)~X)
+# summary(reg1) #AIC = 75
+# 
+# reg2<-glm(data = NY22day, log(NewCases)~X)
+# summary(reg2) #22 days better fit AIC = 45.367
+
+#AIC better for 22 days, check vs 19, 20,21, 23, 24, and 25
+NY19day<-NY30day1[1:19,]
+# NY20day<-NY30day1[1:20,]
+# NY21day<-NY30day1[1:21,]
+# NY23day<-NY30day1[1:23,]
+# NY24day<-NY30day1[1:24,]
+# NY25day<-NY30day1[1:25,]
+
+reg3<-glm(data = NY19day, log(NewCases)~X)
+summary(reg3) #AIC = 42.006
+# reg4<-glm(data = NY20day, log(NewCases)~X)
+# summary(reg4) #AIC = 43.007
+# reg5<-glm(data = NY21day, log(NewCases)~X)
+# summary(reg5) #AIC = 44.108
+# reg6<-glm(data = NY23day, log(NewCases)~X)
+# summary(reg6) #AIC = 47.615
+# reg7<-glm(data = NY24day, log(NewCases)~X)
+# summary(reg7) #AIC = 50.534
+# reg8<-glm(data = NY25day, log(NewCases)~X)
+# summary(reg8) #AIC = 53.086
+
+#Use 19 days, lowest AIC 
+```
+
+#R0 estimation
+```{r}
+#impute removed out liar with fitted value
+NY19day$NewCases[14]<-round(exp(reg3$fitted.values[14]),0)
+NY30day1$NewCases[14]<-round(exp(reg3$fitted.values[14]),0)
+
+#estimate R0 by exponential growth
+GT<-generation.time("weibull", c(estGT$mean, estGT$sd)) #my estimation requiring exclusion of possible asymptomatics
+GTtrue<-generation.time("gamma", c(3.96, 4.75)) #"accurate" generation time estimates from data source study
+
+
+#estimate R0 with accurate generation time
+
+#estimate by exponential growth
+NYR0.egT<-est.R0.EG(epid = NY19day$NewCases, GT = GTtrue, begin = 1, end = 19)
+NYR0.egT  # 4.16927[ 4.079666 , 4.261357 ]
+NYR0.egT$Rsquared # Rsqaured: 0.9689928
+
+#estimate by Maximum likelihood
+NYR0.mlT<-est.R0.ML(epid=NY19day$NewCases, GT=GTtrue, begin = 1, end = 19, reg.met = "poisson", unknown.GT = FALSE)
+NYR0.mlT #3.370366[ 3.272212 , 3.470433 ]  ### Closest to "real" Ro ###
+NYR0.mlT$Rsquared # Rsqaured: 0.6536499
+
+#estimate R0 with my estimates generation time
+#estimate by exponential growth
+NYR0.eg<-est.R0.EG(epid = NY19day$NewCases, GT = GT, begin = 1, end = 19)
+NYR0.eg #5.702606[ 5.55314 , 5.856736 ]
+NYR0.eg$Rsquared # Rsqaured: 0.9689928
+
+#estimate by Maximum likelihood
+NYR0.ml<-est.R0.ML(epid=NY19day$NewCases, GT=GT, begin = 1, end = 19, reg.met = "poisson", unknown.GT = FALSE)
+NYR0.ml #4.71237[ 4.575089 , 4.852066 ]
+NYR0.ml$Rsquared # Rsqaured: 0.6740952
+
+
+##Choose "best" R0 based upon which number fits the SIR model closest, likely to be best Rsquared too
+#store R0 estimates in df
+R0_DF<- data.frame(method=character(0), R0=numeric(0), R0UB=numeric(0), R0LB=numeric(0))
+#designating estimates using study as "true" mine as "est"
+R0_DF[1,1]<-"EG_True"
+R0_DF[2,1]<-"ML_True"
+R0_DF[3,1]<-"EG_est"
+R0_DF[4,1]<-"ML_est"
+
+R0_DF[1,2]<-NYR0.egT$R
+R0_DF[2,2]<-NYR0.mlT$R
+R0_DF[3,2]<-NYR0.eg
+R0_DF[4,2]<-NYR0.ml
+
+R0_DF[1,3]<-NYR0.egT$conf.int[2]
+R0_DF[2,3]<-NYR0.mlT$conf.int[2]
+R0_DF[3,3]<-NYR0.eg$conf.int[2]
+R0_DF[4,3]<-NYR0.ml$conf.int[2]
+
+R0_DF[1,4]<-NYR0.egT$conf.int[1]
+R0_DF[2,4]<-NYR0.mlT$conf.int[1]
+R0_DF[3,4]<-NYR0.eg$conf.int[1]
+R0_DF[4,4]<-NYR0.ml$conf.int[1]
+
+#Large discrepancy between various R0 estimation methods implies data issues or other estimation problems likely from assuming no asymptomatic transmission. Yet other assumptions may be inncorect
+#These results expected as the Ro is noted in the literature as often being suboptimal and even useless beyond a binary indicator of "Cases increases or cases decreasing" 
+#Nonetheless these imperfect calculations provide a "sanity check" for later models
+```
+
+##Basic SIRD model with sum of squares L2 loss POMP 
+```{r}
+
+### Data ###
+#data frame for full first wave NY infection data
+NY<- as.data.frame(NYdata[38:154,])
+#X variable is day tracker, set to 1 where first case occurs
+NY$Day<-NY$X-37
+NY<-NY[c("Day","Deaths")]
+
+#SIRD model in a pomp object framework
+
+SIRD1<- pomp(
+  data = NY,
+  times = "Day",
+  t0=0,
+    skeleton=vectorfield(
+    Csnippet("
+      DS = -beta*S*I/N;
+      DI = (beta*S*I/N)-(rho*0.015*I)-((1-0.015)*neta*I);
+      DR = rho*0.015*I;
+      DD = (1-0.015)*neta*I;")),
+  rinit=Csnippet("
+      S = S_0;
+      I = I_0;
+      R = R_0;
+      D = N-S_0-I_0-R_0;"),
+  statenames=c("S","I","R","D"),
+  paramnames=c("beta","rho","neta", "N","S_0","I_0","R_0"))
+
+#L2 loss function
+
+L2L<- function(params){
+  x<-trajectory(SIRD1, params=params)
+  dif<- x["D",,]-obs(SIRD1)
+  return(sum(dif^2))
+}
+
+# #Test L2L
+# params<-c(beta=2,rho=1, neta=1,N=8700000,S_0=8700000, I_0=1, R_0=0)
+# L2L(params)
+
+Optim_feeder<- function(parm){
+  parms<-c(parm[1],parm[2],parm[3],N=8700000,S_0=8700000, I_0=1, R_0=0)
+  L2L(parms)
+}
+#Optim_feeder(c(beta=2,rho=1, lambda=1, neta=1,N=8700000,S_0=8700000, I_0=1, R_0=0))
+
+fit<-optim(fn=Optim_feeder, par = c(beta=0.2,rho=.1, neta=.1))
+
+#graphically overlay death predictions to actual death data
+SIRDGraphfit_pomp<-function(data,beta,neta,rho, N, I_0=1, R_0=0){
+  I0<-1
+  times<-data$Day
+  params<-c(beta=beta,rho=rho,neta=neta,N=N,S_0=N-I_0,I_0=I_0, R_0=R_0)
+  predictions<-as.data.frame(trajectory(SIRD1,params=params))
+  predictions2<-melt(predictions)
+  predictions2$rowID<-1:4
+  predictions2<-predictions2[predictions2$rowID==4,]
+  with(data, plot(Day,Deaths))
+  lines(predictions2, type="l", col="red")
+}
+
+SIRDGraphfit_pomp(NY, beta=4.428671 , rho =0.6736598 , neta =4.670957e-05  , N=8700000)
+
+
+### Mass init Guesses ### 
+#See deSOLVE SIRD model-- error not in inital guesses but in log-lik profile
+#Likely cause an error or oversight in data cleaning function
+#Or error if raw data itself : is an ongoing pandemic with public health survallence overwhelmed 
+### Find error or find way to circumvent error ###
+#guess data frame
+initDF_pomp<-expand.grid(initBeta=runif(7, min= 0.001, max = 200),initNeta=runif(7, min= 0.001, max = 1),initRho=runif(7, min= 0.001, max = 1))
+initDF_pomp$beta<-NA
+initDF_pomp$neta<-NA
+initDF_pomp$rho<-NA
+initDF_pomp$SSE<-NA
+initDF_pomp$R0<-NA
+
+#
+# for (i in 1:length(initDF_pomp)){
+#   start<-initDF_pomp[i,1:3]
+#   opt<-optim(start,SSELoss) 
+# }
+#     
+
+
+#
+optimize_inits_pomp<-function(initDF){
+  for (i in 1:nrow(initDF)){
+    params<-c(beta=initDF[i,1], neta=initDF[i,2], rho=initDF[i,3])
+    fit<-optim(fn=Optim_feeder, par = params)
+    initDF$beta[i]<-fit$par[1]
+    initDF$neta[i]<-fit$par[2]
+    initDF$rho[i]<-fit$par[3]
+    initDF$SSE[i]<-fit$value
+    initDF$R0[i]<-initDF$beta[i]/((0.015*initDF$neta[i])+(0.985*initDF$rho[i]))
+    print(i)
+    
+  }
+  return(initDF)
+}
+
+#find min SSE
+p<-optimize_inits_pomp(initDF = initDF_pomp)
+p
+
+#extract min SSE
+which.min(p$SSE) #number 122 
+p[122,]
+
+#overlay fit to data
+SIRDGraphfit_pomp(NY, beta=74.22853	 , rho =22.83181 , neta =0.0005661903  , N=8700000)
+#Terrible fit -- See data issues: either with own data prep or with data source
+#Further initial guesses do not converge to remotely similar results further indication of data issues
+#R0 oddly close to accurate R0 = 3.3
+
+
+```
+
+
+##SIRD model deSolve
+```{r}
+#data frame for full first wave NY infection data
+NY<- as.data.frame(NYdata[38:154,])
+#X variable is day tracker, set to 1 where first case occurs
+NY$Day<-NY$X-37
+NY<-NY[c("Day","Deaths")]
+
+#specify SIRD model
+SIRD_Func<-function(beta,lambda,neta,rho,times, I0,R0,D0,S0, N){
+  #differential equations for SIRD
+  SIRD<- function(t,state,parms){
+    with(as.list(c(state,parms)),{
+      dS <- -beta*(S/N)*I
+      dI <- (beta*(S/N)*I) - ((1-lambda)*rho*I) - (lambda*neta*I)
+      dR <- (1-lambda)*rho*I        
+      dD <- lambda*neta*I
+      # N <- S + I + R
+      return(list(c(dS,dI,dR,dD)))
+    })
+  }
+  #specify parameters, note lambda will not be estimated with the others
+  parameters_values <- c(beta  = beta, lambda = lambda, neta=neta, rho=rho)
+  #specify initial values
+  initial_values <- c(S = S0, I = I0, R = R0, D=D0)
+  #use ODE function to solve system with given values
+  out <- ode(initial_values, times, SIRD, parameters_values)
+  #report results in a data frame
+  as.data.frame(out)
+
+}
+
+#test function 
+#SIRD_Func(beta=.2,lambda = .01,neta = .01,rho=.01, times = seq(1:117), S0=8700000,I0=1,R0=0,D0=0, N=8700000)
+
+
+
+
+
+#create function to graphically overlay death predictions to actual death data
+SIRDGraphfit<-function(data,beta,lambda,neta,rho, N){
+  I0<-1
+  times<-data$Day
+  predictions<-SIRD_Func(beta=beta, lambda=lambda,neta=neta,rho=rho,
+                    S0=N-I0, I0=I0,R0=0,D0=0, N=N, times=times)
+  with(data, plot(Day,Deaths))
+  with(predictions, lines(time,D,col= "red"))
+}
+
+#test graphical function
+#SIRDGraphfit(data=NY, beta=.2,lambda = .01,neta = .01,rho=.01, N=8700000)
+
+```
+
+##L2 Loss fit to Death Data
+```{R}
+##L2 Loss function with sum of squared residuals:
+#note lambda (death rate from CFR) is fixed at 0.015
+LossL2 <- function(data=NY,beta,lambda=0.015,neta,rho, S0=8700000,I0=1,R0=0,D0=0, N=8700000){
+  I0<-I0
+  times<-data$Day
+  predictions<-SIRD_Func(beta=beta, lambda=lambda,neta=neta,rho=rho,
+                    S0=N-I0, I0=I0,R0=0,D0=0, N=N, times=times)
+  sum((predictions$D - data$Deaths)^2)       
+}
+
+#function to take in guesses for parameters for optim function
+SSELoss<- function(X){
+  LossL2(beta=X[1],neta =X[2],rho=X[3])
+}
+#test SSE
+#SSELoss(c(.2,.01,.01,.01))
+
+#use optim to solve for parameters
+#initial guesses
+start<-c(0.4738429,0.3032787,0.1592439) 
+
+
+SSE_opt<-optim(start,SSELoss)
+SSE_opt$par
+
+#https://rpubs.com/choisy/sir
+
+#Visualize fit upon death data
+SIRDGraphfit(data=NY, beta=SSE_opt$par[1] , lambda = 0.015,neta =SSE_opt$par[2] ,rho=SSE_opt$par[3], N=8700000)
+
+#calucalte R0 from estimated parameters
+R0<-SSE_opt$par[1]/((0.01*SSE_opt$par[2])+(0.99*SSE_opt$par[3]))
+R0 #while the death data fit looks well, the R0 = 12 is massively overestimated 
+
+
+
+#Run optimization on many starting conditions
+#guessDF<-expand.grid(beta = 3, gamma = seq(from = 0, to = 3, by=.05), N=8700000, S_0=8700000, I_0=1)
+
+initDF<-expand.grid(initBeta=runif(7, min= 0.001, max = 1.5),initNeta=runif(7, min= 0.001, max = 1),initRho=runif(7, min= 0.001, max = 1))
+
+initDF$beta<-NA
+initDF$neta<-NA
+initDF$rho<-NA
+initDF$SSE<-NA
+initDF$R0<-NA
+
+
+optimize_inits<-function(initDF){
+  for (i in 1:nrow(initDF)){
+    start<-initDF[i,1:3]
+    opt<-optim(start,SSELoss)
+    initDF$beta[i]<-opt$par[1]
+    initDF$neta[i]<-opt$par[2]
+    initDF$rho[i]<-opt$par[3]
+    initDF$SSE[i]<-opt$value
+    initDF$R0[i]<-initDF$beta[i]/((0.015*initDF$neta[i])+(0.985*initDF$rho[i]))
+    print(i)
+    
+  }
+  return(initDF)
+}
+
+# To large an inital guess grid do not run, take random sample instead
+# #find min SSE
+# z<-optimize_inits(initDF = initDF)
+# z
+
+small_initDF <- initDF[sample(nrow(initDF), 30), ] #Random sample of 30 inital guesses
+z <- optimize_inits(initDF = small_initDF) #method still inefficient look for better optimization methods
+
+#filter where parameters make physical sense
+SSE_opt<-filter(z, (beta<2) & (neta<1) & (rho<1) & (R0>1 & R0<6) )
+SSE_opt<-SSE_opt[which.min(SSE_opt$SSE),]
+
+
+#visualize fit
+SIRDGraphfit(data=NY, beta=SSE_opt[4] , lambda = 0.015,neta =SSE_opt[5] ,rho=SSE_opt[6], N=8700000)
+
+#calucalte R0 from estimated parameters
+R0<-SSE_opt[4]/((0.015*SSE_opt[5])+(0.985*SSE_opt[6]))
+R0 # R0 = 2.7 is reasonable 
+
+
+## plot full model ##
+
+SIRD_DF_L2<-SIRD_Func(beta=SSE_opt[4],lambda=0.015,neta=SSE_opt[5],rho=SSE_opt[6],times=NY$Day, I0=1,R0=0,D0=0,S0=8700000, N=8700000)
+
+SIRD_L2<-ggplot(data = SIRD_DF_L2, aes(x=time, y=variable, color=variable))+
+  geom_line(aes(y=S, color = "blue"))+
+  geom_line(aes(y=I, color = "red"))+
+  geom_line(aes(y=R, color = "green"))+
+  geom_line(aes(y=D, color = "brown"))+
+  labs(x="Day", y="Number of People", title="SIRD NY Model COVID19")+
+  scale_color_identity(name = "State", labels = c("S", "D", "R", "I"), guide = "legend")+
+  theme(plot.title = element_text(size=15, hjust = 0.5), 
+        legend.position = "bottom",
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.background = element_rect(fill = 'white'))
+
+SIRD_L2
+
+
+## Model  predicts that 90% of new york was infected between day 30 and 60. Obviously model is flawed
+## Data issues most likely cause
+## Still investigate more complicated but perhaps "complete" compartmentalized differential equation system
+```
+
+### MLE estimation-- Currently getting log lik = inf, and no deaths ###
+```{r}
+#plot death data to visually approximate distrobution
+plot(NYdata$X,NYdata$NewDeaths) #approx Poisson, Normal would be biased but not awful
+plot(NYdata$X,NYdata$Deaths)
+
+```
+
+### Normal distribution of errors ###
+```{r}
+MLE_Norm <- function(data=NY,beta, sigma,lambda=0.015,neta,rho, S0=8700000,I0=1,R0=0,D0=0, N=8700000){
+  #bound estimates to > 0
+  beta <- exp(beta)
+  neta <- exp(neta)
+  rho <- exp(rho)
+  #sigma must be estimated
+  sigma <- exp(sigma)
+  I0 <- I0
+  times <- data$Day
+  deaths <- data$Deaths
+  predictions <- SIRD_Func(beta=beta, lambda=lambda,neta=neta,rho=rho,
+                    S0=N-I0, I0=I0,R0=0,D0=0, N=N, times=times)
+  #log lik
+  return(-sum(dnorm(x=deaths, mean = predictions$D, sd = sigma ,log = TRUE)))
+}
+#Test MLE function
+#MLE_Norm(data=NY,beta=0.2,lambda=0.015, sigma=1, neta=0.01,rho=0.01, S0=8700000,I0=1,R0=0,D0=0, N=8700000)
+
+## use mle2 for estimation
+#initial guesses
+init<- list(beta = 0.1, neta = 0.01, rho = 0.001, sigma=1)
+
+# One guess run
+MLE_Norm_Opt <- mle2(minuslogl = MLE_Norm, start = init, method = "Nelder-Mead", data = c(NY,S0=8700000,I0=1,R0=0,D0=0, N=8700000, lambda=0.015))
+MLE_Norm_Opt@min
+
+#Mass guess for initials
+initDF_Expanded<-expand.grid(initBeta=runif(50, min= 0.001, max = .8),initNeta=runif(50, min= 0.001, max = .9),initRho=runif(50, min= 0.001, max = .9))
+
+initDF_Expanded$beta<-NA
+initDF_Expanded$neta<-NA
+initDF_Expanded$rho<-NA
+initDF_Expanded$LogLik<-NA
+initDF_Expanded$R0<-NA
+
+#select random sample of expanded data frame
+initDF<-initDF_Expanded[sample(nrow(initDF_Expanded), 30), ]
+
+
+#mass guesses run
+MLE_inits<-function(initDF){
+  for (i in 1:nrow(initDF)){
+    start<-list(beta=initDF$initBeta[i], neta=initDF$initNeta[i], rho=initDF$initRho[i], sigma=1)
+    opt<-mle2(minuslogl = MLE_Norm, start = start, method = "Nelder-Mead", data = c(NY,S0=8700000,I0=1,R0=0,D0=0, N=8700000, lambda=0.015))
+    initDF$beta[i]<-exp(opt@coef[1])
+    initDF$neta[i]<-exp(opt@coef[3])
+    initDF$rho[i]<-exp(opt@coef[4])
+    initDF$LogLik[i]<-opt@min
+    initDF$R0[i]<-initDF$beta[i]/((0.015*initDF$neta[i])+(0.985*initDF$rho[i]))
+    if (i<nrow(initDF)){
+      print(i)
+    } else{
+      print("DONE!")
+    }
+      
+    
+  }
+  return(initDF)
+}
+
+z<-MLE_inits(initDF = initDF)
+
+
+
+#extract estimates Single init guess
+par<-exp(coef(MLE_Norm_Opt))
+
+
+prof <-profile(MLE_Norm_Opt, std.err=1)
+exp(prof@coef)
+
+#Visualize fit upon death data
+SIRDGraphfit(data=NY, beta=par[1] , lambda = 0.015,neta =par[3] ,rho=par[4] , N=8700000)
+
+#R0
+R<-(par[1]/((0.01*par[3] )+(0.99*par[4])))
+
+#extract estimates mass init guesses
+LogLik_Opt<-filter(z, (beta<2) & (neta<1) & (rho<1) & (R0>1 & R0<6) )
+LogLik_Opt<-LogLik_Opt[which.min(LogLik_Opt$LogLik),]
+
+#Visualize fit upon death data
+SIRDGraphfit(data=NY, beta=LogLik_Opt[4] , lambda = 0.015,neta =LogLik_Opt[5] ,rho=LogLik_Opt[6] , N=8700000)
+
+
+##graphically represent model
+#create data frame 
+SIRD_DF_LogLik_Norm<-SIRD_Func(beta=LogLik_Opt[4],lambda=0.015,neta=LogLik_Opt[5],rho=LogLik_Opt[6],times=NY$Day, I0=1,R0=0,D0=0,S0=8700000, N=8700000)
+
+#construct ggplot for Normal distribution
+SIRD_LogLik_Norm<-ggplot(data = SIRD_DF_LogLik_Norm, aes(x=time, y=variable, color=variable))+
+  geom_line(aes(y=S, color = "blue"))+
+  geom_line(aes(y=I, color = "red"))+
+  geom_line(aes(y=R, color = "green"))+
+  geom_line(aes(y=D, color = "brown"))+
+  labs(x="Day", y="Number of People", title="SIRD NY Model COVID19")+
+  scale_color_identity(name = "State", labels = c("S", "D", "R", "I"), guide = "legend")+
+  theme(plot.title = element_text(size=15, hjust = 0.5), 
+        legend.position = "bottom",
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.background = element_rect(fill = 'white'))
+
+SIRD_LogLik_Norm
+
+#Better model than L2 loss fit, yet it still vastly overestimates the number of infected, likely by factor of 20-50 vs CDC estimates 
+
+```
+
+### Poisson Distribution ###
+```{r}
+
+
+MLE_Pois<-function(data=NY,beta,neta,rho,lambda=0.015, S0=8700000,I0=1,R0=0,D0=0, N=8700000){
+  beta<-exp(beta)
+  neta<-exp(neta)
+  rho<-exp(rho)
+  #sigma<-exp(sigma)
+  deaths<-data$Deaths
+  times<-data$Day
+  predictions<-SIRD_Func(beta=beta, lambda=lambda,neta=neta,rho=rho,
+                    S0=N-I0, I0=I0,R0=0,D0=0, N=N, times=times)
+  Predictions<-predictions$D
+ if (any(Predictions<0)){ return(NA)}
+  -sum(dpois(x=deaths, lambda = Predictions,  log=TRUE))
+}
+
+#test MLE function
+#MLE_Pois(data=NY,beta=0.002,lambda=0.015,neta=0.01,rho=0.02, S0=8700000,I0=1,R0=0,D0=0, N=8700000)
+
+### Single Initial guess ###
+#initial guesses
+
+init<-list(beta=0.9687586,neta=0.05465845,rho=0.19190883)
+
+#fit model
+MLE_Pois_Opt<-mle2(minuslogl = MLE_Pois, start=init, data = c(NY), method="Nelder-Mead")
+
+#estimates
+par<-exp(coef(MLE_Pois_Opt))
+
+#Visualize fit upon death data
+SIRDGraphfit(data=NY, beta=par[1] , lambda = 0.015,neta =par[2] ,rho=par[3] , N=8700000)
+
+# #R0
+ R<-((par[1])/((0.01*par[2] )+(0.99*par[3])))
+ R
+```
+
+```{r}
+### Mass initial Guesses ###
+
+#Mass guess for initials
+initDF_Expanded<-expand.grid(initBeta=runif(50, min= 0.001, max = 1),initNeta=runif(50, min= 0.001, max = 1),initRho=runif(50, min= 0.001, max = 1))
+
+initDF_Expanded$beta<-NA
+initDF_Expanded$neta<-NA
+initDF_Expanded$rho<-NA
+initDF_Expanded$LogLik<-NA
+initDF_Expanded$R0<-NA
+
+#select random sample of expanded data frame
+initDF<-initDF_Expanded[sample(nrow(initDF_Expanded), 30), ]
+
+
+#mass guesses run
+MLE_inits_Opt<-function(initDF){
+  for (i in 1:nrow(initDF)){
+    start<-list(beta=initDF$initBeta[i], neta=initDF$initNeta[i], rho=initDF$initRho[i])
+    opt<-mle2(minuslogl = MLE_Pois, start = start, method = "Nelder-Mead", data = c(NY,S0=8700000,I0=1,R0=0,D0=0, N=8700000, lambda=0.015))
+    initDF$beta[i]<-exp(opt@coef[1])
+    initDF$neta[i]<-exp(opt@coef[2])
+    initDF$rho[i]<-exp(opt@coef[3])
+    initDF$LogLik[i]<-opt@min
+    initDF$R0[i]<-initDF$beta[i]/((0.015*initDF$neta[i])+(0.985*initDF$rho[i]))
+    if (i<nrow(initDF)){
+      print(i)
+    } else{
+      print("DONE!")
+    }
+      
+    
+  }
+  return(initDF)
+}
+
+z1<-MLE_inits_Opt(initDF = initDF)
+
+
+#extract batched best solutions that conform to somewhat realistic parameters
+LogLik_Opt1<-filter(z1, (beta<400) & (neta<5) & (rho<5) & (R0>1 & R0<7) )
+LogLik_Opt1$index<-NA
+LogLik_Opt1<-LogLik_Opt1%>%
+  arrange(desc(LogLik))
+for (i in 1:nrow(LogLik_Opt1)){
+  LogLik_Opt1$index[i]<-i
+  if (LogLik_Opt1$index>=1 & LogLik_Opt1$index<8){
+    #Visualize death
+    SIRDGraphfit(data=NY, beta=LogLik_Opt1[i,4] , lambda = 0.015,neta =LogLik_Opt1[i,5] ,rho=LogLik_Opt1[i,6] , N=8700000)
+  }
+}#find way to hide warnings
+
+SIRDGraphfit_Infect<-function(data,beta,lambda,neta,rho, N){
+  I0<-1
+  times<-data$Day
+  predictions<-SIRD_Func(beta=beta, lambda=lambda,neta=neta,rho=rho,
+                    S0=N-I0, I0=I0,R0=0,D0=0, N=N, times=times)
+  with(data, plot(Day,Cases*10, ylim=c(0, 5e+06)))
+  with(predictions, lines(time,8700000-S,col= "red"))
+}
+
+#data frame for full first wave NY infection data
+NY2<- as.data.frame(NYdata[38:154,])
+#X variable is day tracker, set to 1 where first case occurs
+NY2$Day<-NY2$X-37
+NY2<-NY2[c("Day","Cases")]
+
+pars<-LogLik_Opt1[1,]
+
+SIRDGraphfit_Infect(data=NY2, beta=pars[4] , lambda = 0.015,neta =pars[5] ,rho=pars[6] , N=8700000)
+
+
+## Mass comparison of goodness of fit, not useful since established there is likely a data problem
+
+# for (i in 1:150){
+#   LogLik_Opt1$index[i]<-i
+#   if (LogLik_Opt1$index>=1 & LogLik_Opt1$index<8){
+#     #Visualize death
+#     SIRDGraphfit_Infect(data=NY2, beta=LogLik_Opt1[i,4] , lambda = 0.015,neta =LogLik_Opt1[i,5] ,rho=LogLik_Opt1[i,6] , N=8700000)
+#   }
+# }
+
+##graphically represent model
+#create data frame 
+SIRD_DF_Pois<-SIRD_Func(beta=LogLik_Opt1[1,4],lambda=0.015,neta=LogLik_Opt1[1,5],rho=LogLik_Opt1[1,6],times=NY$Day, I0=1,R0=0,D0=0,S0=8700000, N=8700000)
+
+#construct ggplot for poison distribution
+SIRD_Pois<-ggplot(data = SIRD_DF_Pois, aes(x=time, y=variable, color=variable))+
+  geom_line(aes(y=S, color = "blue"))+
+  geom_line(aes(y=I, color = "red"))+
+  geom_line(aes(y=R, color = "green"))+
+  geom_line(aes(y=D, color = "brown"))+
+  labs(x="Day", y="Number of People", title="SIRD NY Model COVID19")+
+  scale_color_identity(name = "State", labels = c("S", "D", "R", "I"), guide = "legend")+
+  theme(plot.title = element_text(size=15, hjust = 0.5), 
+        legend.position = "bottom",
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.background = element_rect(fill = 'white'))
+
+SIRD_Pois
+
+#Same issue as the nomal distrobution model: ie more and more likely a core data issue than underlying distribution of said data
+
+```
+
+#additional batches
+```{r}
+#additional batches
+LogLik_Opt2<-filter(z2, (beta<5) & (neta<5) & (rho<5) & (R0>1 & R0<7) )
+LogLik_Opt2$index<-NA
+LogLik_Opt2<-LogLik_Opt2%>%
+  arrange(desc(LogLik))
+for (i in 1:nrow(LogLik_Opt2)){
+  LogLik_Opt2$index[i]<-i
+  if (LogLik_Opt2$index>=1 & LogLik_Opt2$index<8){
+    #Visualize death
+    SIRDGraphfit(data=NY, beta=LogLik_Opt2[i,4] , lambda = 0.015,neta =LogLik_Opt2[i,5] ,rho=LogLik_Opt2[i,6] , N=8700000)
+  }
+}
+
+LogLik_Opt3<-filter(z3, (beta<5) & (neta<5) & (rho<5) & (R0>1 & R0<7) )
+LogLik_Opt3$index<-NA
+LogLik_Opt3<-loglik_opt3%>%
+  arrange(desc(LogLik))
+for (i in 1:nrow(loglik_opt3)){
+  loglik_opt3$index[i]<-i
+  if (loglik_opt3$index>=1 & loglik_opt3$index<8){
+    #Visualize death
+    SIRDGraphfit(data=NY, beta=loglik_opt3[i,4] , lambda = 0.015,neta =loglik_opt3[i,5] ,rho=loglik_opt3[i,6] , N=8700000)
+  }
+}
+
+LogLik_Opt4<-filter(z4, (beta<5) & (neta<5) & (rho<5) & (R0>1 & R0<7) )
+LogLik_Opt4$index<-NA
+LogLik_Opt4<-LogLik_Opt4%>%
+  arrange(desc(LogLik))
+for (i in 1:nrow(loglik_opt4)){
+  loglik_opt4$index[i]<-i
+  if (loglik_opt4$index>=1 & loglik_opt4$index<8){
+    #Visualize death
+    SIRDGraphfit(data=NY, beta=loglik_opt4[i,4] , lambda = 0.015,neta =loglik_opt4[i,5] ,rho=loglik_opt4[i,6] , N=8700000)
+  }
+}
+
+LogLik_Opt5<-filter(z5, (beta<5) & (neta<5) & (rho<5) & (R0>1 & R0<7) )
+LogLik_Opt5$index<-NA
+loglik_opt5<-loglik_opt5%>%
+  arrange(desc(LogLik))
+for (i in 1:nrow(loglik_opt5)){
+  loglik_opt5$index[i]<-i
+  if (loglik_opt5$index>=1 & loglik_opt5$index<8){
+    #Visualize death
+    SIRDGraphfit(data=NY, beta=loglik_opt5[i,4] , lambda = 0.015,neta =loglik_opt5[i,5] ,rho=loglik_opt5[i,6] , N=8700000)
+  }
+}
+
+LogLik_Opt6<-filter(z6, (beta<5) & (neta<5) & (rho<5) & (R0>1 & R0<7) )
+LogLik_Opt6$index<-NA
+loglik_opt6<-loglik_opt6%>%
+  arrange(desc(LogLik))
+for (i in 1:nrow(loglik_opt6)){
+  loglik_opt6$index[i]<-i
+  if (loglik_opt6$index>=1 & loglik_opt6$index<8){
+    #Visualize death
+    SIRDGraphfit(data=NY, beta=loglik_opt6[i,4] , lambda = 0.015,neta =loglik_opt6[i,5] ,rho=loglik_opt6[i,6] , N=8700000)
+  }
+}
+
+LogLik_Opt7<-filter(z7, (beta<5) & (neta<5) & (rho<5) & (R0>1 & R0<7) )
+LogLik_Opt7$index<-NA
+loglik_opt7<-loglik_opt7%>%
+  arrange(desc(LogLik))
+for (i in 1:nrow(loglik_opt7)){
+  loglik_opt7$index[i]<-i
+  if (loglik_opt7$index>=1 & loglik_opt7$index<8){
+    #Visualize death
+    SIRDGraphfit(data=NY, beta=loglik_opt7[i,4] , lambda = 0.015,neta =loglik_opt7[i,5] ,rho=loglik_opt7[i,6] , N=8700000)
+  }
+}
+
+LogLik_Opt8<-filter(z8, (beta<5) & (neta<5) & (rho<5) & (R0>1 & R0<7) )
+LogLik_Opt8$index<-NA
+LogLik_Opt8<-loglik_opt8%>%
+  arrange(desc(LogLik))
+for (i in 1:nrow(loglik_opt8)){
+  loglik_opt8$index[i]<-i
+  if (loglik_opt8$index>=1 & loglik_opt8$index<8){
+    #Visualize death
+    SIRDGraphfit(data=NY, beta=loglik_opt8[i,4] , lambda = 0.015,neta =loglik_opt8[i,5] ,rho=loglik_opt8[i,6] , N=8700000)
+  }
+}
+
+LogLik_Opt9<-filter(z9, (beta<5) & (neta<5) & (rho<5) & (R0>1 & R0<7) )
+LogLik_Opt9$index<-NA
+LogLik_Opt9<-loglik_opt9%>%
+  arrange(desc(LogLik))
+for (i in 1:nrow(loglik_opt9)){
+  loglik_opt9$index[i]<-i
+  if (loglik_opt9$index>=1 & loglik_opt9$index<8){
+    #Visualize death
+    SIRDGraphfit(data=NY, beta=loglik_opt9[i,4] , lambda = 0.015,neta =loglik_opt9[i,5] ,rho=loglik_opt9[i,6] , N=8700000)
+  }
+}
+
+
+
+#extract estimates mass init guesses
+LogLik_Opt<-filter(z1, (beta<3) & (neta<3) & (rho<3) & (R0>1 & R0<7) )
+LogLik_Opt<-LogLik_Opt1[which.min(LogLik_Opt1$LogLik),]
+
+#create loop to extract top 10 options from each batch into own data frame, each with own index for each result, then graph fit with labeled index with death data
+
+
+
+#vector for loglike_opt that might be okay??
+0.2005691
+0.8714885
+0.8726326
+2.611369
+1.718675
+2.313924
+23286.33
+1.132917
+
+#Visualize fit upon death data
+SIRDGraphfit(data=NY, beta=LogLik_Opt1[4] , lambda = 0.015,neta =LogLik_Opt1[5] ,rho=LogLik_Opt1[6] , N=8700000)
+ 
+ 
+
+```
+
+
+### Negative Binomia Distrobution ### -- Likely most "accurate" distrobution since we can work in the overdispersed Poisson noise case: St.dev > mean
+```{r}
+MLE_Negbin<-function(data=NY,beta,neta,size,rho,lambda=0.015, S0=8700000,I0=1,R0=0,D0=0, N=8700000){
+  beta<-exp(beta)
+  neta<-exp(neta)
+  rho<-exp(rho)
+  deaths<-data$Deaths
+  times<-data$Day
+  predictions<-SIRD_Func(beta=beta, lambda=lambda,neta=neta,rho=rho,
+                    S0=N-I0, I0=I0,R0=0,D0=0, N=N, times=times)
+  Predictions<-predictions$D
+ #if (any(Predictions<0)){ return(NA)}
+  -sum(dnbinom(x=deaths,size=size,prob=lambda, log = TRUE))
+}
+
+#test MLE function
+
+MLE_Negbin(data=NY,beta=0.08,lambda=0.015,neta=.01,rho=.2, S0=8700000,I0=1,R0=0,D0=0, N=8700000, size=1)
+
+#initial guesses
+init<-list(beta=0.01,neta=0.001,rho=.02, size=1)
+
+#fit model
+MLE_Negbin_Opt<-mle2(minuslogl = MLE_Negbin, start=init, data = c(NY))
+
+#estimates
+par<-exp(coef(MLE_Negbin_Opt))
+
+#Visualize fit upon death data
+SIRDGraphfit(data=NY, beta=par[1] , lambda = 0.015,neta =par[2] ,rho=par[3] , N=8700000)
+
+#R0
+R<-((par[1])/((0.01*par[2] )+(0.99*par[3])))
+R
+
+
+###mass guesses###
+NegBin_inits_Opt<-function(initDF){
+  for (i in 1:nrow(initDF)){
+    start<-list(beta=initDF$initBeta[i], neta=initDF$initNeta[i], rho=initDF$initRho[i], size=initDF$initSize[i])
+    opt<-mle2(minuslogl = MLE_Negbin, start = start, method = "Nelder-Mead", data = c(NY,S0=8700000,I0=1,R0=0,D0=0, N=8700000, lambda=0.015))
+    initDF$beta[i]<-exp(opt@coef[1])
+    initDF$neta[i]<-exp(opt@coef[2])
+    initDF$rho[i]<-exp(opt@coef[3])
+    initDF$LogLik[i]<-opt@min
+    initDF$R0[i]<-initDF$beta[i]/((0.015*initDF$neta[i])+(0.985*initDF$rho[i]))
+    if (i<nrow(initDF)){
+      print(i)
+    } else{
+      print("DONE!")
+    }
+      
+    
+  }
+  return(initDF)
+}
+
+initDF_Expanded2<-expand.grid(initBeta=runif(50, min= 0.001, max = 1),initNeta=runif(50, min= 0.001, max = 1),initRho=runif(50, min= 0.001, max = 1), initSize=runif(10, min=1, max=100))
+
+
+initDF2<-initDF_Expanded2[sample(nrow(initDF_Expanded2), 30), ]
+
+
+z2<-NegBin_inits_Opt(initDF = initDF2)
+
+
+
+
+
+##graphically represent model
+#create data frame 
+SIRD_DF_nbin<-SIRD_Func(beta=par[1],lambda=0.015,neta=par[2],rho=par[3],times=NY$Day, I0=1,R0=0,D0=0,S0=8700000, N=8700000) 
+
+#construct ggplot for negative binomial distribution
+SIRD_nbin<-ggplot(data = SIRD_DF_nbin, aes(x=time, y=variable, color=variable))+
+  geom_line(aes(y=S, color = "blue"))+
+  geom_line(aes(y=I, color = "red"))+
+  geom_line(aes(y=R, color = "green"))+
+  geom_line(aes(y=D, color = "brown"))+
+  labs(x="Day", y="Number of People", title="SIRD NY Model COVID19")+
+  scale_color_identity(name = "State", labels = c("S", "D", "R", "I"), guide = "legend")+
+  theme(plot.title = element_text(size=15, hjust = 0.5),
+        legend.position = "bottom",
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.background = element_rect(fill = 'white'))
+
+SIRD_nbin
+
+ ## Model failure ##
+#Failure likely due to misspecified negbinom parameters -- solve issue once data problem corrected or mitigated
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
