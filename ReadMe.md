@@ -18,27 +18,27 @@ The SIRD model is made up of four compartments, one for each possible state of t
 
 Susceptibles change at a rate equal to:
 
-![equation](https://bit.ly/2RMKyvV)
+![equation](http://www.sciweavers.org/tex2img.php?eq=%20%20\frac{dS}{dt}%20%20%3D%20\frac{%20-\beta%20*%20S%20*%20I%20}{N}%20&bc=White&fc=Black&im=jpg&fs=12&ff=arev&edit=0)
 
 Infectious change at a rate equal to:
 
-![equation](https://bit.ly/3w39Q7S)
+![equation](http://www.sciweavers.org/tex2img.php?eq=%20%20\frac{dI}{dt}%20%20%3D%20\frac{%20\beta%20*%20S%20*%20I%20}{N}%20-%20%20\rho%20%20\lambda%20*I%20-%20(1-%20\lambda%20)%20\eta%20*I&bc=White&fc=Black&im=jpg&fs=12&ff=arev&edit=0)
 
 Recovered change at a rate equal to:
 
-![equation](https://bit.ly/3uJoXD6)
+![equation](http://www.sciweavers.org/tex2img.php?eq=%20\frac{dR}{dt}%20%20%3D%20(1-\lambda)%20\eta%20I&bc=White&fc=Black&im=jpg&fs=12&ff=arev&edit=0)
 
 Deseased change at a rate equal to:
 
-![equation](https://bit.ly/3ocQiLh)
+![equation](http://www.sciweavers.org/tex2img.php?eq=%20\frac{dD}{dt}%20%20%3D%20\lambda%20\eta%20I&bc=White&fc=Black&im=jpg&fs=12&ff=arev&edit=0)
 
 Where beta is the force of infection, N is the total population, lambda is the probability of death, rho is the rate of recovery, and eta the rate of death. For simplicity, this model will begin with lambda set to 0.015, or equal to the estimated overall probability of death from COVID-19 according to the CDC.
 
 The basic reproductive number, Ro, can also be derived from the SIRD equations. Ro is equal to the force of infection, beta, divided by the rate of removal, gamma. 
 
-![equation](https://bit.ly/3fkltk6)
+![equation](http://www.sciweavers.org/tex2img.php?eq=Ro%20%3D%20%20\frac{%20\beta%20}{%20%20\gamma%20}%20&bc=White&fc=Black&im=jpg&fs=12&ff=arev&edit=0)
 
-![equation](https://bit.ly/3obTDKy)
+![equation](http://www.sciweavers.org/tex2img.php?eq=%20\gamma%20%20%3D%20%20\lambda%20%20\eta%20%20%2B%20%20(1-\lambda)%20\rho%20&bc=White&fc=Black&im=jpg&fs=12&ff=arev&edit=0)
 
 ## Project Current State and Future Directions
 
