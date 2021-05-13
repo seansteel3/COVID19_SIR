@@ -22,16 +22,15 @@ Susceptibles change at a rate equal to:
 
 Infectious change at a rate equal to:
 
-![equation](http://www.sciweavers.org/tex2img.php?eq=%20%20%5Cfrac%7BdI%7D%7Bdt%7D%20%20%3D%20%5Cfrac%7B%20%5Cbeta%20%2A%20S%20%2A%20I%20%7D%7BN%7D%20-%20%20%5Crho%20%20%5Clambda%20I%20-%20%281-%20%5Clambda%20%29%20%5Ceta%20I&bc=White&fc=Black&im=jpg&fs=12&ff=arev&edit=0)
+![equation](https://bit.ly/3w39Q7S)
 
 Recovered change at a rate equal to:
 
-![equation](http://www.sciweavers.org/tex2img.php?eq=%20%5Cfrac%7BdR%7D%7Bdt%7D%20%20%3D%20%281-%5Clambda%29%20%5Ceta%20I&bc=White&fc=Black&im=jpg&fs=12&ff=arev&edit=0)
+![equation](https://bit.ly/3uJoXD6)
 
 Deseased change at a rate equal to:
 
-![equation](http://www.sciweavers.org/tex2img.php?eq=%20%5Cfrac%7BdD%7D%7Bdt%7D%20%20%3D%20%5Clambda%20%5Ceta%20I&bc=White&fc=Black&im=jpg&fs=12&ff=arev&edit=0)
-
+![equation](https://bit.ly/3ocQiLh)
 
 Where beta is the force of infection, N is the total population, lambda is the probability of death, rho is the rate of recovery, and eta the rate of death. For simplicity, this model will begin with lambda set to 0.015, or equal to the estimated overall probability of death from COVID-19 according to the CDC.
 
