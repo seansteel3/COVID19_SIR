@@ -1,6 +1,5 @@
 
-<!-- Introduction -->
-## Introduction
+# Volatility_Analysis
 
   The COVID19_SIR project is a mathematical modeling project for the spread of COVID-19. 
 This project aims to explore disease dynamics through a basic epidemiological compartmental model known as the Survival Infectious
@@ -14,6 +13,8 @@ than the basic SIR model, since death data to fit directly to estimate the param
   In addition to the obvious intrigue of exploring the nature of pandemics, this project is also intended as a personal 
 learning project since it will serve as the first exposure to differential equation modeling. 
 
+
+  
 ### The Model
 
 
