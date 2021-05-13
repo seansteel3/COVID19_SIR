@@ -1,3 +1,5 @@
+*** Currently none of the equations are displying correctly, the links the images of the equations are emmbedded in are correct but GITHUB does not seem to want to display the correct images ***
+
 
 # COVID19_SIR
 
