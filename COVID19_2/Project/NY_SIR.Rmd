@@ -181,16 +181,16 @@ SIRD1<- pomp(
     skeleton=vectorfield(
     Csnippet("
       DS = -beta*S*I/N;
-      DI = (beta*S*I/N)-(rho*0.015*I)-((1-0.015)*neta*I);
+      DI = (beta*S*I/N)-(rho*0.015*I)-((1-0.015)*eta*I);
       DR = rho*0.015*I;
-      DD = (1-0.015)*neta*I;")),
+      DD = (1-0.015)*eta*I;")),
   rinit=Csnippet("
       S = S_0;
       I = I_0;
       R = R_0;
       D = N-S_0-I_0-R_0;"),
   statenames=c("S","I","R","D"),
-  paramnames=c("beta","rho","neta", "N","S_0","I_0","R_0"))
+  paramnames=c("beta","rho","eta", "N","S_0","I_0","R_0"))
 
 #L2 loss function
 
@@ -201,22 +201,22 @@ L2L<- function(params){
 }
 
 # #Test L2L
-# params<-c(beta=2,rho=1, neta=1,N=8700000,S_0=8700000, I_0=1, R_0=0)
+# params<-c(beta=2,rho=1, eta=1,N=8700000,S_0=8700000, I_0=1, R_0=0)
 # L2L(params)
 
 Optim_feeder<- function(parm){
   parms<-c(parm[1],parm[2],parm[3],N=8700000,S_0=8700000, I_0=1, R_0=0)
   L2L(parms)
 }
-#Optim_feeder(c(beta=2,rho=1, lambda=1, neta=1,N=8700000,S_0=8700000, I_0=1, R_0=0))
+#Optim_feeder(c(beta=2,rho=1, lambda=1, eta=1,N=8700000,S_0=8700000, I_0=1, R_0=0))
 
-fit<-optim(fn=Optim_feeder, par = c(beta=0.2,rho=.1, neta=.1))
+fit<-optim(fn=Optim_feeder, par = c(beta=0.2,rho=.1, eta=.1))
 
 #graphically overlay death predictions to actual death data
-SIRDGraphfit_pomp<-function(data,beta,neta,rho, N, I_0=1, R_0=0){
+SIRDGraphfit_pomp<-function(data,beta,eta,rho, N, I_0=1, R_0=0){
   I0<-1
   times<-data$Day
-  params<-c(beta=beta,rho=rho,neta=neta,N=N,S_0=N-I_0,I_0=I_0, R_0=R_0)
+  params<-c(beta=beta,rho=rho,eta=eta,N=N,S_0=N-I_0,I_0=I_0, R_0=R_0)
   predictions<-as.data.frame(trajectory(SIRD1,params=params))
   predictions2<-melt(predictions)
   predictions2$rowID<-1:4
@@ -225,7 +225,7 @@ SIRDGraphfit_pomp<-function(data,beta,neta,rho, N, I_0=1, R_0=0){
   lines(predictions2, type="l", col="red")
 }
 
-SIRDGraphfit_pomp(NY, beta=4.428671 , rho =0.6736598 , neta =4.670957e-05  , N=8700000)
+SIRDGraphfit_pomp(NY, beta=4.428671 , rho =0.6736598 , eta =4.670957e-05  , N=8700000)
 
 
 ### Mass init Guesses ### 
@@ -234,9 +234,9 @@ SIRDGraphfit_pomp(NY, beta=4.428671 , rho =0.6736598 , neta =4.670957e-05  , N=8
 #Or error if raw data itself : is an ongoing pandemic with public health survallence overwhelmed 
 ### Find error or find way to circumvent error ###
 #guess data frame
-initDF_pomp<-expand.grid(initBeta=runif(7, min= 0.001, max = 200),initNeta=runif(7, min= 0.001, max = 1),initRho=runif(7, min= 0.001, max = 1))
+initDF_pomp<-expand.grid(initBeta=runif(7, min= 0.001, max = 200),initeta=runif(7, min= 0.001, max = 1),initRho=runif(7, min= 0.001, max = 1))
 initDF_pomp$beta<-NA
-initDF_pomp$neta<-NA
+initDF_pomp$eta<-NA
 initDF_pomp$rho<-NA
 initDF_pomp$SSE<-NA
 initDF_pomp$R0<-NA
@@ -252,13 +252,13 @@ initDF_pomp$R0<-NA
 #
 optimize_inits_pomp<-function(initDF){
   for (i in 1:nrow(initDF)){
-    params<-c(beta=initDF[i,1], neta=initDF[i,2], rho=initDF[i,3])
+    params<-c(beta=initDF[i,1], eta=initDF[i,2], rho=initDF[i,3])
     fit<-optim(fn=Optim_feeder, par = params)
     initDF$beta[i]<-fit$par[1]
-    initDF$neta[i]<-fit$par[2]
+    initDF$eta[i]<-fit$par[2]
     initDF$rho[i]<-fit$par[3]
     initDF$SSE[i]<-fit$value
-    initDF$R0[i]<-initDF$beta[i]/((0.015*initDF$neta[i])+(0.985*initDF$rho[i]))
+    initDF$R0[i]<-initDF$beta[i]/((0.015*initDF$eta[i])+(0.985*initDF$rho[i]))
     print(i)
     
   }
@@ -274,7 +274,7 @@ which.min(p$SSE) #number 122
 p[122,]
 
 #overlay fit to data
-SIRDGraphfit_pomp(NY, beta=74.22853	 , rho =22.83181 , neta =0.0005661903  , N=8700000)
+SIRDGraphfit_pomp(NY, beta=74.22853	 , rho =22.83181 , eta =0.0005661903  , N=8700000)
 #Terrible fit -- See data issues: either with own data prep or with data source
 #Further initial guesses do not converge to remotely similar results further indication of data issues
 #R0 oddly close to accurate R0 = 3.3
@@ -292,20 +292,20 @@ NY$Day<-NY$X-37
 NY<-NY[c("Day","Deaths")]
 
 #specify SIRD model
-SIRD_Func<-function(beta,lambda,neta,rho,times, I0,R0,D0,S0, N){
+SIRD_Func<-function(beta,lambda,eta,rho,times, I0,R0,D0,S0, N){
   #differential equations for SIRD
   SIRD<- function(t,state,parms){
     with(as.list(c(state,parms)),{
       dS <- -beta*(S/N)*I
-      dI <- (beta*(S/N)*I) - ((1-lambda)*rho*I) - (lambda*neta*I)
+      dI <- (beta*(S/N)*I) - ((1-lambda)*rho*I) - (lambda*eta*I)
       dR <- (1-lambda)*rho*I        
-      dD <- lambda*neta*I
+      dD <- lambda*eta*I
       # N <- S + I + R
       return(list(c(dS,dI,dR,dD)))
     })
   }
   #specify parameters, note lambda will not be estimated with the others
-  parameters_values <- c(beta  = beta, lambda = lambda, neta=neta, rho=rho)
+  parameters_values <- c(beta  = beta, lambda = lambda, eta=eta, rho=rho)
   #specify initial values
   initial_values <- c(S = S0, I = I0, R = R0, D=D0)
   #use ODE function to solve system with given values
@@ -316,24 +316,24 @@ SIRD_Func<-function(beta,lambda,neta,rho,times, I0,R0,D0,S0, N){
 }
 
 #test function 
-#SIRD_Func(beta=.2,lambda = .01,neta = .01,rho=.01, times = seq(1:117), S0=8700000,I0=1,R0=0,D0=0, N=8700000)
+#SIRD_Func(beta=.2,lambda = .01,eta = .01,rho=.01, times = seq(1:117), S0=8700000,I0=1,R0=0,D0=0, N=8700000)
 
 
 
 
 
 #create function to graphically overlay death predictions to actual death data
-SIRDGraphfit<-function(data,beta,lambda,neta,rho, N){
+SIRDGraphfit<-function(data,beta,lambda,eta,rho, N){
   I0<-1
   times<-data$Day
-  predictions<-SIRD_Func(beta=beta, lambda=lambda,neta=neta,rho=rho,
+  predictions<-SIRD_Func(beta=beta, lambda=lambda,eta=eta,rho=rho,
                     S0=N-I0, I0=I0,R0=0,D0=0, N=N, times=times)
   with(data, plot(Day,Deaths))
   with(predictions, lines(time,D,col= "red"))
 }
 
 #test graphical function
-#SIRDGraphfit(data=NY, beta=.2,lambda = .01,neta = .01,rho=.01, N=8700000)
+#SIRDGraphfit(data=NY, beta=.2,lambda = .01,eta = .01,rho=.01, N=8700000)
 
 ```
 
@@ -341,17 +341,17 @@ SIRDGraphfit<-function(data,beta,lambda,neta,rho, N){
 ```{R}
 ##L2 Loss function with sum of squared residuals:
 #note lambda (death rate from CFR) is fixed at 0.015
-LossL2 <- function(data=NY,beta,lambda=0.015,neta,rho, S0=8700000,I0=1,R0=0,D0=0, N=8700000){
+LossL2 <- function(data=NY,beta,lambda=0.015,eta,rho, S0=8700000,I0=1,R0=0,D0=0, N=8700000){
   I0<-I0
   times<-data$Day
-  predictions<-SIRD_Func(beta=beta, lambda=lambda,neta=neta,rho=rho,
+  predictions<-SIRD_Func(beta=beta, lambda=lambda,eta=eta,rho=rho,
                     S0=N-I0, I0=I0,R0=0,D0=0, N=N, times=times)
   sum((predictions$D - data$Deaths)^2)       
 }
 
 #function to take in guesses for parameters for optim function
 SSELoss<- function(X){
-  LossL2(beta=X[1],neta =X[2],rho=X[3])
+  LossL2(beta=X[1],eta =X[2],rho=X[3])
 }
 #test SSE
 #SSELoss(c(.2,.01,.01,.01))
@@ -367,10 +367,10 @@ SSE_opt$par
 #https://rpubs.com/choisy/sir
 
 #Visualize fit upon death data
-SIRDGraphfit(data=NY, beta=SSE_opt$par[1] , lambda = 0.015,neta =SSE_opt$par[2] ,rho=SSE_opt$par[3], N=8700000)
+SIRDGraphfit(data=NY, beta=SSE_opt$par[1] , lambda = 0.015,eta =SSE_opt$par[2] ,rho=SSE_opt$par[3], N=8700000)
 
 #calucalte R0 from estimated parameters
-R0<-SSE_opt$par[1]/((0.01*SSE_opt$par[2])+(0.99*SSE_opt$par[3]))
+R0<-SSE_opt$par[1]/((0.015*SSE_opt$par[2])+(0.985*SSE_opt$par[3]))
 R0 #while the death data fit looks well, the R0 = 12 is massively overestimated 
 
 
@@ -378,10 +378,10 @@ R0 #while the death data fit looks well, the R0 = 12 is massively overestimated
 #Run optimization on many starting conditions
 #guessDF<-expand.grid(beta = 3, gamma = seq(from = 0, to = 3, by=.05), N=8700000, S_0=8700000, I_0=1)
 
-initDF<-expand.grid(initBeta=runif(7, min= 0.001, max = 1.5),initNeta=runif(7, min= 0.001, max = 1),initRho=runif(7, min= 0.001, max = 1))
+initDF<-expand.grid(initBeta=runif(7, min= 0.001, max = 1.5),initeta=runif(7, min= 0.001, max = 1),initRho=runif(7, min= 0.001, max = 1))
 
 initDF$beta<-NA
-initDF$neta<-NA
+initDF$eta<-NA
 initDF$rho<-NA
 initDF$SSE<-NA
 initDF$R0<-NA
@@ -392,10 +392,10 @@ optimize_inits<-function(initDF){
     start<-initDF[i,1:3]
     opt<-optim(start,SSELoss)
     initDF$beta[i]<-opt$par[1]
-    initDF$neta[i]<-opt$par[2]
+    initDF$eta[i]<-opt$par[2]
     initDF$rho[i]<-opt$par[3]
     initDF$SSE[i]<-opt$value
-    initDF$R0[i]<-initDF$beta[i]/((0.015*initDF$neta[i])+(0.985*initDF$rho[i]))
+    initDF$R0[i]<-initDF$beta[i]/((0.015*initDF$eta[i])+(0.985*initDF$rho[i]))
     print(i)
     
   }
@@ -411,12 +411,12 @@ small_initDF <- initDF[sample(nrow(initDF), 30), ] #Random sample of 30 inital g
 z <- optimize_inits(initDF = small_initDF) #method still inefficient look for better optimization methods
 
 #filter where parameters make physical sense
-SSE_opt<-filter(z, (beta<2) & (neta<1) & (rho<1) & (R0>1 & R0<6) )
+SSE_opt<-filter(z, (beta<2) & (eta<1) & (rho<1) & (R0>1 & R0<6) )
 SSE_opt<-SSE_opt[which.min(SSE_opt$SSE),]
 
 
 #visualize fit
-SIRDGraphfit(data=NY, beta=SSE_opt[4] , lambda = 0.015,neta =SSE_opt[5] ,rho=SSE_opt[6], N=8700000)
+SIRDGraphfit(data=NY, beta=SSE_opt[4] , lambda = 0.015,eta =SSE_opt[5] ,rho=SSE_opt[6], N=8700000)
 
 #calucalte R0 from estimated parameters
 R0<-SSE_opt[4]/((0.015*SSE_opt[5])+(0.985*SSE_opt[6]))
@@ -425,7 +425,7 @@ R0 # R0 = 2.7 is reasonable
 
 ## plot full model ##
 
-SIRD_DF_L2<-SIRD_Func(beta=SSE_opt[4],lambda=0.015,neta=SSE_opt[5],rho=SSE_opt[6],times=NY$Day, I0=1,R0=0,D0=0,S0=8700000, N=8700000)
+SIRD_DF_L2<-SIRD_Func(beta=SSE_opt[4],lambda=0.015,eta=SSE_opt[5],rho=SSE_opt[6],times=NY$Day, I0=1,R0=0,D0=0,S0=8700000, N=8700000)
 
 SIRD_L2<-ggplot(data = SIRD_DF_L2, aes(x=time, y=variable, color=variable))+
   geom_line(aes(y=S, color = "blue"))+
@@ -458,37 +458,37 @@ plot(NYdata$X,NYdata$Deaths)
 
 ### Normal distribution of errors ###
 ```{r}
-MLE_Norm <- function(data=NY,beta, sigma,lambda=0.015,neta,rho, S0=8700000,I0=1,R0=0,D0=0, N=8700000){
+MLE_Norm <- function(data=NY,beta, sigma,lambda=0.015,eta,rho, S0=8700000,I0=1,R0=0,D0=0, N=8700000){
   #bound estimates to > 0
   beta <- exp(beta)
-  neta <- exp(neta)
+  eta <- exp(eta)
   rho <- exp(rho)
   #sigma must be estimated
   sigma <- exp(sigma)
   I0 <- I0
   times <- data$Day
   deaths <- data$Deaths
-  predictions <- SIRD_Func(beta=beta, lambda=lambda,neta=neta,rho=rho,
+  predictions <- SIRD_Func(beta=beta, lambda=lambda,eta=eta,rho=rho,
                     S0=N-I0, I0=I0,R0=0,D0=0, N=N, times=times)
   #log lik
   return(-sum(dnorm(x=deaths, mean = predictions$D, sd = sigma ,log = TRUE)))
 }
 #Test MLE function
-#MLE_Norm(data=NY,beta=0.2,lambda=0.015, sigma=1, neta=0.01,rho=0.01, S0=8700000,I0=1,R0=0,D0=0, N=8700000)
+#MLE_Norm(data=NY,beta=0.2,lambda=0.015, sigma=1, eta=0.01,rho=0.01, S0=8700000,I0=1,R0=0,D0=0, N=8700000)
 
 ## use mle2 for estimation
 #initial guesses
-init<- list(beta = 0.1, neta = 0.01, rho = 0.001, sigma=1)
+init<- list(beta = 0.1, eta = 0.01, rho = 0.001, sigma=1)
 
 # One guess run
 MLE_Norm_Opt <- mle2(minuslogl = MLE_Norm, start = init, method = "Nelder-Mead", data = c(NY,S0=8700000,I0=1,R0=0,D0=0, N=8700000, lambda=0.015))
 MLE_Norm_Opt@min
 
 #Mass guess for initials
-initDF_Expanded<-expand.grid(initBeta=runif(50, min= 0.001, max = .8),initNeta=runif(50, min= 0.001, max = .9),initRho=runif(50, min= 0.001, max = .9))
+initDF_Expanded<-expand.grid(initBeta=runif(50, min= 0.001, max = .8),initeta=runif(50, min= 0.001, max = .9),initRho=runif(50, min= 0.001, max = .9))
 
 initDF_Expanded$beta<-NA
-initDF_Expanded$neta<-NA
+initDF_Expanded$eta<-NA
 initDF_Expanded$rho<-NA
 initDF_Expanded$LogLik<-NA
 initDF_Expanded$R0<-NA
@@ -500,13 +500,13 @@ initDF<-initDF_Expanded[sample(nrow(initDF_Expanded), 30), ]
 #mass guesses run
 MLE_inits<-function(initDF){
   for (i in 1:nrow(initDF)){
-    start<-list(beta=initDF$initBeta[i], neta=initDF$initNeta[i], rho=initDF$initRho[i], sigma=1)
+    start<-list(beta=initDF$initBeta[i], eta=initDF$initeta[i], rho=initDF$initRho[i], sigma=1)
     opt<-mle2(minuslogl = MLE_Norm, start = start, method = "Nelder-Mead", data = c(NY,S0=8700000,I0=1,R0=0,D0=0, N=8700000, lambda=0.015))
     initDF$beta[i]<-exp(opt@coef[1])
-    initDF$neta[i]<-exp(opt@coef[3])
+    initDF$eta[i]<-exp(opt@coef[3])
     initDF$rho[i]<-exp(opt@coef[4])
     initDF$LogLik[i]<-opt@min
-    initDF$R0[i]<-initDF$beta[i]/((0.015*initDF$neta[i])+(0.985*initDF$rho[i]))
+    initDF$R0[i]<-initDF$beta[i]/((0.015*initDF$eta[i])+(0.985*initDF$rho[i]))
     if (i<nrow(initDF)){
       print(i)
     } else{
@@ -530,22 +530,22 @@ prof <-profile(MLE_Norm_Opt, std.err=1)
 exp(prof@coef)
 
 #Visualize fit upon death data
-SIRDGraphfit(data=NY, beta=par[1] , lambda = 0.015,neta =par[3] ,rho=par[4] , N=8700000)
+SIRDGraphfit(data=NY, beta=par[1] , lambda = 0.015,eta =par[3] ,rho=par[4] , N=8700000)
 
 #R0
 R<-(par[1]/((0.01*par[3] )+(0.99*par[4])))
 
 #extract estimates mass init guesses
-LogLik_Opt<-filter(z, (beta<2) & (neta<1) & (rho<1) & (R0>1 & R0<6) )
+LogLik_Opt<-filter(z, (beta<2) & (eta<1) & (rho<1) & (R0>1 & R0<6) )
 LogLik_Opt<-LogLik_Opt[which.min(LogLik_Opt$LogLik),]
 
 #Visualize fit upon death data
-SIRDGraphfit(data=NY, beta=LogLik_Opt[4] , lambda = 0.015,neta =LogLik_Opt[5] ,rho=LogLik_Opt[6] , N=8700000)
+SIRDGraphfit(data=NY, beta=LogLik_Opt[4] , lambda = 0.015,eta =LogLik_Opt[5] ,rho=LogLik_Opt[6] , N=8700000)
 
 
 ##graphically represent model
 #create data frame 
-SIRD_DF_LogLik_Norm<-SIRD_Func(beta=LogLik_Opt[4],lambda=0.015,neta=LogLik_Opt[5],rho=LogLik_Opt[6],times=NY$Day, I0=1,R0=0,D0=0,S0=8700000, N=8700000)
+SIRD_DF_LogLik_Norm<-SIRD_Func(beta=LogLik_Opt[4],lambda=0.015,eta=LogLik_Opt[5],rho=LogLik_Opt[6],times=NY$Day, I0=1,R0=0,D0=0,S0=8700000, N=8700000)
 
 #construct ggplot for Normal distribution
 SIRD_LogLik_Norm<-ggplot(data = SIRD_DF_LogLik_Norm, aes(x=time, y=variable, color=variable))+
@@ -571,14 +571,14 @@ SIRD_LogLik_Norm
 ```{r}
 
 
-MLE_Pois<-function(data=NY,beta,neta,rho,lambda=0.015, S0=8700000,I0=1,R0=0,D0=0, N=8700000){
+MLE_Pois<-function(data=NY,beta,eta,rho,lambda=0.015, S0=8700000,I0=1,R0=0,D0=0, N=8700000){
   beta<-exp(beta)
-  neta<-exp(neta)
+  eta<-exp(eta)
   rho<-exp(rho)
   #sigma<-exp(sigma)
   deaths<-data$Deaths
   times<-data$Day
-  predictions<-SIRD_Func(beta=beta, lambda=lambda,neta=neta,rho=rho,
+  predictions<-SIRD_Func(beta=beta, lambda=lambda,eta=eta,rho=rho,
                     S0=N-I0, I0=I0,R0=0,D0=0, N=N, times=times)
   Predictions<-predictions$D
  if (any(Predictions<0)){ return(NA)}
@@ -586,12 +586,12 @@ MLE_Pois<-function(data=NY,beta,neta,rho,lambda=0.015, S0=8700000,I0=1,R0=0,D0=0
 }
 
 #test MLE function
-#MLE_Pois(data=NY,beta=0.002,lambda=0.015,neta=0.01,rho=0.02, S0=8700000,I0=1,R0=0,D0=0, N=8700000)
+#MLE_Pois(data=NY,beta=0.002,lambda=0.015,eta=0.01,rho=0.02, S0=8700000,I0=1,R0=0,D0=0, N=8700000)
 
 ### Single Initial guess ###
 #initial guesses
 
-init<-list(beta=0.9687586,neta=0.05465845,rho=0.19190883)
+init<-list(beta=0.9687586,eta=0.05465845,rho=0.19190883)
 
 #fit model
 MLE_Pois_Opt<-mle2(minuslogl = MLE_Pois, start=init, data = c(NY), method="Nelder-Mead")
@@ -600,7 +600,7 @@ MLE_Pois_Opt<-mle2(minuslogl = MLE_Pois, start=init, data = c(NY), method="Nelde
 par<-exp(coef(MLE_Pois_Opt))
 
 #Visualize fit upon death data
-SIRDGraphfit(data=NY, beta=par[1] , lambda = 0.015,neta =par[2] ,rho=par[3] , N=8700000)
+SIRDGraphfit(data=NY, beta=par[1] , lambda = 0.015,eta =par[2] ,rho=par[3] , N=8700000)
 
 # #R0
  R<-((par[1])/((0.01*par[2] )+(0.99*par[3])))
@@ -611,10 +611,10 @@ SIRDGraphfit(data=NY, beta=par[1] , lambda = 0.015,neta =par[2] ,rho=par[3] , N=
 ### Mass initial Guesses ###
 
 #Mass guess for initials
-initDF_Expanded<-expand.grid(initBeta=runif(50, min= 0.001, max = 1),initNeta=runif(50, min= 0.001, max = 1),initRho=runif(50, min= 0.001, max = 1))
+initDF_Expanded<-expand.grid(initBeta=runif(50, min= 0.001, max = 1),initeta=runif(50, min= 0.001, max = 1),initRho=runif(50, min= 0.001, max = 1))
 
 initDF_Expanded$beta<-NA
-initDF_Expanded$neta<-NA
+initDF_Expanded$eta<-NA
 initDF_Expanded$rho<-NA
 initDF_Expanded$LogLik<-NA
 initDF_Expanded$R0<-NA
@@ -626,13 +626,13 @@ initDF<-initDF_Expanded[sample(nrow(initDF_Expanded), 30), ]
 #mass guesses run
 MLE_inits_Opt<-function(initDF){
   for (i in 1:nrow(initDF)){
-    start<-list(beta=initDF$initBeta[i], neta=initDF$initNeta[i], rho=initDF$initRho[i])
+    start<-list(beta=initDF$initBeta[i], eta=initDF$initeta[i], rho=initDF$initRho[i])
     opt<-mle2(minuslogl = MLE_Pois, start = start, method = "Nelder-Mead", data = c(NY,S0=8700000,I0=1,R0=0,D0=0, N=8700000, lambda=0.015))
     initDF$beta[i]<-exp(opt@coef[1])
-    initDF$neta[i]<-exp(opt@coef[2])
+    initDF$eta[i]<-exp(opt@coef[2])
     initDF$rho[i]<-exp(opt@coef[3])
     initDF$LogLik[i]<-opt@min
-    initDF$R0[i]<-initDF$beta[i]/((0.015*initDF$neta[i])+(0.985*initDF$rho[i]))
+    initDF$R0[i]<-initDF$beta[i]/((0.015*initDF$eta[i])+(0.985*initDF$rho[i]))
     if (i<nrow(initDF)){
       print(i)
     } else{
@@ -648,7 +648,7 @@ z1<-MLE_inits_Opt(initDF = initDF)
 
 
 #extract batched best solutions that conform to somewhat realistic parameters
-LogLik_Opt1<-filter(z1, (beta<400) & (neta<5) & (rho<5) & (R0>1 & R0<7) )
+LogLik_Opt1<-filter(z1, (beta<400) & (eta<5) & (rho<5) & (R0>1 & R0<7) )
 LogLik_Opt1$index<-NA
 LogLik_Opt1<-LogLik_Opt1%>%
   arrange(desc(LogLik))
@@ -656,14 +656,14 @@ for (i in 1:nrow(LogLik_Opt1)){
   LogLik_Opt1$index[i]<-i
   if (LogLik_Opt1$index>=1 & LogLik_Opt1$index<8){
     #Visualize death
-    SIRDGraphfit(data=NY, beta=LogLik_Opt1[i,4] , lambda = 0.015,neta =LogLik_Opt1[i,5] ,rho=LogLik_Opt1[i,6] , N=8700000)
+    SIRDGraphfit(data=NY, beta=LogLik_Opt1[i,4] , lambda = 0.015,eta =LogLik_Opt1[i,5] ,rho=LogLik_Opt1[i,6] , N=8700000)
   }
 }#find way to hide warnings
 
-SIRDGraphfit_Infect<-function(data,beta,lambda,neta,rho, N){
+SIRDGraphfit_Infect<-function(data,beta,lambda,eta,rho, N){
   I0<-1
   times<-data$Day
-  predictions<-SIRD_Func(beta=beta, lambda=lambda,neta=neta,rho=rho,
+  predictions<-SIRD_Func(beta=beta, lambda=lambda,eta=eta,rho=rho,
                     S0=N-I0, I0=I0,R0=0,D0=0, N=N, times=times)
   with(data, plot(Day,Cases*10, ylim=c(0, 5e+06)))
   with(predictions, lines(time,8700000-S,col= "red"))
@@ -677,7 +677,7 @@ NY2<-NY2[c("Day","Cases")]
 
 pars<-LogLik_Opt1[1,]
 
-SIRDGraphfit_Infect(data=NY2, beta=pars[4] , lambda = 0.015,neta =pars[5] ,rho=pars[6] , N=8700000)
+SIRDGraphfit_Infect(data=NY2, beta=pars[4] , lambda = 0.015,eta =pars[5] ,rho=pars[6] , N=8700000)
 
 
 ## Mass comparison of goodness of fit, not useful since established there is likely a data problem
@@ -686,13 +686,13 @@ SIRDGraphfit_Infect(data=NY2, beta=pars[4] , lambda = 0.015,neta =pars[5] ,rho=p
 #   LogLik_Opt1$index[i]<-i
 #   if (LogLik_Opt1$index>=1 & LogLik_Opt1$index<8){
 #     #Visualize death
-#     SIRDGraphfit_Infect(data=NY2, beta=LogLik_Opt1[i,4] , lambda = 0.015,neta =LogLik_Opt1[i,5] ,rho=LogLik_Opt1[i,6] , N=8700000)
+#     SIRDGraphfit_Infect(data=NY2, beta=LogLik_Opt1[i,4] , lambda = 0.015,eta =LogLik_Opt1[i,5] ,rho=LogLik_Opt1[i,6] , N=8700000)
 #   }
 # }
 
 ##graphically represent model
 #create data frame 
-SIRD_DF_Pois<-SIRD_Func(beta=LogLik_Opt1[1,4],lambda=0.015,neta=LogLik_Opt1[1,5],rho=LogLik_Opt1[1,6],times=NY$Day, I0=1,R0=0,D0=0,S0=8700000, N=8700000)
+SIRD_DF_Pois<-SIRD_Func(beta=LogLik_Opt1[1,4],lambda=0.015,eta=LogLik_Opt1[1,5],rho=LogLik_Opt1[1,6],times=NY$Day, I0=1,R0=0,D0=0,S0=8700000, N=8700000)
 
 #construct ggplot for poison distribution
 SIRD_Pois<-ggplot(data = SIRD_DF_Pois, aes(x=time, y=variable, color=variable))+
@@ -717,7 +717,7 @@ SIRD_Pois
 #additional batches
 ```{r}
 #additional batches
-LogLik_Opt2<-filter(z2, (beta<5) & (neta<5) & (rho<5) & (R0>1 & R0<7) )
+LogLik_Opt2<-filter(z2, (beta<5) & (eta<5) & (rho<5) & (R0>1 & R0<7) )
 LogLik_Opt2$index<-NA
 LogLik_Opt2<-LogLik_Opt2%>%
   arrange(desc(LogLik))
@@ -725,11 +725,11 @@ for (i in 1:nrow(LogLik_Opt2)){
   LogLik_Opt2$index[i]<-i
   if (LogLik_Opt2$index>=1 & LogLik_Opt2$index<8){
     #Visualize death
-    SIRDGraphfit(data=NY, beta=LogLik_Opt2[i,4] , lambda = 0.015,neta =LogLik_Opt2[i,5] ,rho=LogLik_Opt2[i,6] , N=8700000)
+    SIRDGraphfit(data=NY, beta=LogLik_Opt2[i,4] , lambda = 0.015,eta =LogLik_Opt2[i,5] ,rho=LogLik_Opt2[i,6] , N=8700000)
   }
 }
 
-LogLik_Opt3<-filter(z3, (beta<5) & (neta<5) & (rho<5) & (R0>1 & R0<7) )
+LogLik_Opt3<-filter(z3, (beta<5) & (eta<5) & (rho<5) & (R0>1 & R0<7) )
 LogLik_Opt3$index<-NA
 LogLik_Opt3<-loglik_opt3%>%
   arrange(desc(LogLik))
@@ -737,11 +737,11 @@ for (i in 1:nrow(loglik_opt3)){
   loglik_opt3$index[i]<-i
   if (loglik_opt3$index>=1 & loglik_opt3$index<8){
     #Visualize death
-    SIRDGraphfit(data=NY, beta=loglik_opt3[i,4] , lambda = 0.015,neta =loglik_opt3[i,5] ,rho=loglik_opt3[i,6] , N=8700000)
+    SIRDGraphfit(data=NY, beta=loglik_opt3[i,4] , lambda = 0.015,eta =loglik_opt3[i,5] ,rho=loglik_opt3[i,6] , N=8700000)
   }
 }
 
-LogLik_Opt4<-filter(z4, (beta<5) & (neta<5) & (rho<5) & (R0>1 & R0<7) )
+LogLik_Opt4<-filter(z4, (beta<5) & (eta<5) & (rho<5) & (R0>1 & R0<7) )
 LogLik_Opt4$index<-NA
 LogLik_Opt4<-LogLik_Opt4%>%
   arrange(desc(LogLik))
@@ -749,11 +749,11 @@ for (i in 1:nrow(loglik_opt4)){
   loglik_opt4$index[i]<-i
   if (loglik_opt4$index>=1 & loglik_opt4$index<8){
     #Visualize death
-    SIRDGraphfit(data=NY, beta=loglik_opt4[i,4] , lambda = 0.015,neta =loglik_opt4[i,5] ,rho=loglik_opt4[i,6] , N=8700000)
+    SIRDGraphfit(data=NY, beta=loglik_opt4[i,4] , lambda = 0.015,eta =loglik_opt4[i,5] ,rho=loglik_opt4[i,6] , N=8700000)
   }
 }
 
-LogLik_Opt5<-filter(z5, (beta<5) & (neta<5) & (rho<5) & (R0>1 & R0<7) )
+LogLik_Opt5<-filter(z5, (beta<5) & (eta<5) & (rho<5) & (R0>1 & R0<7) )
 LogLik_Opt5$index<-NA
 loglik_opt5<-loglik_opt5%>%
   arrange(desc(LogLik))
@@ -761,11 +761,11 @@ for (i in 1:nrow(loglik_opt5)){
   loglik_opt5$index[i]<-i
   if (loglik_opt5$index>=1 & loglik_opt5$index<8){
     #Visualize death
-    SIRDGraphfit(data=NY, beta=loglik_opt5[i,4] , lambda = 0.015,neta =loglik_opt5[i,5] ,rho=loglik_opt5[i,6] , N=8700000)
+    SIRDGraphfit(data=NY, beta=loglik_opt5[i,4] , lambda = 0.015,eta =loglik_opt5[i,5] ,rho=loglik_opt5[i,6] , N=8700000)
   }
 }
 
-LogLik_Opt6<-filter(z6, (beta<5) & (neta<5) & (rho<5) & (R0>1 & R0<7) )
+LogLik_Opt6<-filter(z6, (beta<5) & (eta<5) & (rho<5) & (R0>1 & R0<7) )
 LogLik_Opt6$index<-NA
 loglik_opt6<-loglik_opt6%>%
   arrange(desc(LogLik))
@@ -773,11 +773,11 @@ for (i in 1:nrow(loglik_opt6)){
   loglik_opt6$index[i]<-i
   if (loglik_opt6$index>=1 & loglik_opt6$index<8){
     #Visualize death
-    SIRDGraphfit(data=NY, beta=loglik_opt6[i,4] , lambda = 0.015,neta =loglik_opt6[i,5] ,rho=loglik_opt6[i,6] , N=8700000)
+    SIRDGraphfit(data=NY, beta=loglik_opt6[i,4] , lambda = 0.015,eta =loglik_opt6[i,5] ,rho=loglik_opt6[i,6] , N=8700000)
   }
 }
 
-LogLik_Opt7<-filter(z7, (beta<5) & (neta<5) & (rho<5) & (R0>1 & R0<7) )
+LogLik_Opt7<-filter(z7, (beta<5) & (eta<5) & (rho<5) & (R0>1 & R0<7) )
 LogLik_Opt7$index<-NA
 loglik_opt7<-loglik_opt7%>%
   arrange(desc(LogLik))
@@ -785,11 +785,11 @@ for (i in 1:nrow(loglik_opt7)){
   loglik_opt7$index[i]<-i
   if (loglik_opt7$index>=1 & loglik_opt7$index<8){
     #Visualize death
-    SIRDGraphfit(data=NY, beta=loglik_opt7[i,4] , lambda = 0.015,neta =loglik_opt7[i,5] ,rho=loglik_opt7[i,6] , N=8700000)
+    SIRDGraphfit(data=NY, beta=loglik_opt7[i,4] , lambda = 0.015,eta =loglik_opt7[i,5] ,rho=loglik_opt7[i,6] , N=8700000)
   }
 }
 
-LogLik_Opt8<-filter(z8, (beta<5) & (neta<5) & (rho<5) & (R0>1 & R0<7) )
+LogLik_Opt8<-filter(z8, (beta<5) & (eta<5) & (rho<5) & (R0>1 & R0<7) )
 LogLik_Opt8$index<-NA
 LogLik_Opt8<-loglik_opt8%>%
   arrange(desc(LogLik))
@@ -797,11 +797,11 @@ for (i in 1:nrow(loglik_opt8)){
   loglik_opt8$index[i]<-i
   if (loglik_opt8$index>=1 & loglik_opt8$index<8){
     #Visualize death
-    SIRDGraphfit(data=NY, beta=loglik_opt8[i,4] , lambda = 0.015,neta =loglik_opt8[i,5] ,rho=loglik_opt8[i,6] , N=8700000)
+    SIRDGraphfit(data=NY, beta=loglik_opt8[i,4] , lambda = 0.015,eta =loglik_opt8[i,5] ,rho=loglik_opt8[i,6] , N=8700000)
   }
 }
 
-LogLik_Opt9<-filter(z9, (beta<5) & (neta<5) & (rho<5) & (R0>1 & R0<7) )
+LogLik_Opt9<-filter(z9, (beta<5) & (eta<5) & (rho<5) & (R0>1 & R0<7) )
 LogLik_Opt9$index<-NA
 LogLik_Opt9<-loglik_opt9%>%
   arrange(desc(LogLik))
@@ -809,14 +809,14 @@ for (i in 1:nrow(loglik_opt9)){
   loglik_opt9$index[i]<-i
   if (loglik_opt9$index>=1 & loglik_opt9$index<8){
     #Visualize death
-    SIRDGraphfit(data=NY, beta=loglik_opt9[i,4] , lambda = 0.015,neta =loglik_opt9[i,5] ,rho=loglik_opt9[i,6] , N=8700000)
+    SIRDGraphfit(data=NY, beta=loglik_opt9[i,4] , lambda = 0.015,eta =loglik_opt9[i,5] ,rho=loglik_opt9[i,6] , N=8700000)
   }
 }
 
 
 
 #extract estimates mass init guesses
-LogLik_Opt<-filter(z1, (beta<3) & (neta<3) & (rho<3) & (R0>1 & R0<7) )
+LogLik_Opt<-filter(z1, (beta<3) & (eta<3) & (rho<3) & (R0>1 & R0<7) )
 LogLik_Opt<-LogLik_Opt1[which.min(LogLik_Opt1$LogLik),]
 
 #create loop to extract top 10 options from each batch into own data frame, each with own index for each result, then graph fit with labeled index with death data
@@ -834,7 +834,7 @@ LogLik_Opt<-LogLik_Opt1[which.min(LogLik_Opt1$LogLik),]
 1.132917
 
 #Visualize fit upon death data
-SIRDGraphfit(data=NY, beta=LogLik_Opt1[4] , lambda = 0.015,neta =LogLik_Opt1[5] ,rho=LogLik_Opt1[6] , N=8700000)
+SIRDGraphfit(data=NY, beta=LogLik_Opt1[4] , lambda = 0.015,eta =LogLik_Opt1[5] ,rho=LogLik_Opt1[6] , N=8700000)
  
  
 
@@ -843,13 +843,13 @@ SIRDGraphfit(data=NY, beta=LogLik_Opt1[4] , lambda = 0.015,neta =LogLik_Opt1[5] 
 
 ### Negative Binomia Distrobution ### -- Likely most "accurate" distrobution since we can work in the overdispersed Poisson noise case: St.dev > mean
 ```{r}
-MLE_Negbin<-function(data=NY,beta,neta,size,rho,lambda=0.015, S0=8700000,I0=1,R0=0,D0=0, N=8700000){
+MLE_Negbin<-function(data=NY,beta,eta,size,rho,lambda=0.015, S0=8700000,I0=1,R0=0,D0=0, N=8700000){
   beta<-exp(beta)
-  neta<-exp(neta)
+  eta<-exp(eta)
   rho<-exp(rho)
   deaths<-data$Deaths
   times<-data$Day
-  predictions<-SIRD_Func(beta=beta, lambda=lambda,neta=neta,rho=rho,
+  predictions<-SIRD_Func(beta=beta, lambda=lambda,eta=eta,rho=rho,
                     S0=N-I0, I0=I0,R0=0,D0=0, N=N, times=times)
   Predictions<-predictions$D
  #if (any(Predictions<0)){ return(NA)}
@@ -858,10 +858,10 @@ MLE_Negbin<-function(data=NY,beta,neta,size,rho,lambda=0.015, S0=8700000,I0=1,R0
 
 #test MLE function
 
-MLE_Negbin(data=NY,beta=0.08,lambda=0.015,neta=.01,rho=.2, S0=8700000,I0=1,R0=0,D0=0, N=8700000, size=1)
+MLE_Negbin(data=NY,beta=0.08,lambda=0.015,eta=.01,rho=.2, S0=8700000,I0=1,R0=0,D0=0, N=8700000, size=1)
 
 #initial guesses
-init<-list(beta=0.01,neta=0.001,rho=.02, size=1)
+init<-list(beta=0.01,eta=0.001,rho=.02, size=1)
 
 #fit model
 MLE_Negbin_Opt<-mle2(minuslogl = MLE_Negbin, start=init, data = c(NY))
@@ -870,7 +870,7 @@ MLE_Negbin_Opt<-mle2(minuslogl = MLE_Negbin, start=init, data = c(NY))
 par<-exp(coef(MLE_Negbin_Opt))
 
 #Visualize fit upon death data
-SIRDGraphfit(data=NY, beta=par[1] , lambda = 0.015,neta =par[2] ,rho=par[3] , N=8700000)
+SIRDGraphfit(data=NY, beta=par[1] , lambda = 0.015,eta =par[2] ,rho=par[3] , N=8700000)
 
 #R0
 R<-((par[1])/((0.01*par[2] )+(0.99*par[3])))
@@ -880,13 +880,13 @@ R
 ###mass guesses###
 NegBin_inits_Opt<-function(initDF){
   for (i in 1:nrow(initDF)){
-    start<-list(beta=initDF$initBeta[i], neta=initDF$initNeta[i], rho=initDF$initRho[i], size=initDF$initSize[i])
+    start<-list(beta=initDF$initBeta[i], eta=initDF$initeta[i], rho=initDF$initRho[i], size=initDF$initSize[i])
     opt<-mle2(minuslogl = MLE_Negbin, start = start, method = "Nelder-Mead", data = c(NY,S0=8700000,I0=1,R0=0,D0=0, N=8700000, lambda=0.015))
     initDF$beta[i]<-exp(opt@coef[1])
-    initDF$neta[i]<-exp(opt@coef[2])
+    initDF$eta[i]<-exp(opt@coef[2])
     initDF$rho[i]<-exp(opt@coef[3])
     initDF$LogLik[i]<-opt@min
-    initDF$R0[i]<-initDF$beta[i]/((0.015*initDF$neta[i])+(0.985*initDF$rho[i]))
+    initDF$R0[i]<-initDF$beta[i]/((0.015*initDF$eta[i])+(0.985*initDF$rho[i]))
     if (i<nrow(initDF)){
       print(i)
     } else{
@@ -898,7 +898,7 @@ NegBin_inits_Opt<-function(initDF){
   return(initDF)
 }
 
-initDF_Expanded2<-expand.grid(initBeta=runif(50, min= 0.001, max = 1),initNeta=runif(50, min= 0.001, max = 1),initRho=runif(50, min= 0.001, max = 1), initSize=runif(10, min=1, max=100))
+initDF_Expanded2<-expand.grid(initBeta=runif(50, min= 0.001, max = 1),initeta=runif(50, min= 0.001, max = 1),initRho=runif(50, min= 0.001, max = 1), initSize=runif(10, min=1, max=100))
 
 
 initDF2<-initDF_Expanded2[sample(nrow(initDF_Expanded2), 30), ]
@@ -912,7 +912,7 @@ z2<-NegBin_inits_Opt(initDF = initDF2)
 
 ##graphically represent model
 #create data frame 
-SIRD_DF_nbin<-SIRD_Func(beta=par[1],lambda=0.015,neta=par[2],rho=par[3],times=NY$Day, I0=1,R0=0,D0=0,S0=8700000, N=8700000) 
+SIRD_DF_nbin<-SIRD_Func(beta=par[1],lambda=0.015,eta=par[2],rho=par[3],times=NY$Day, I0=1,R0=0,D0=0,S0=8700000, N=8700000) 
 
 #construct ggplot for negative binomial distribution
 SIRD_nbin<-ggplot(data = SIRD_DF_nbin, aes(x=time, y=variable, color=variable))+
