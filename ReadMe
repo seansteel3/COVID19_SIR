@@ -1,4 +1,3 @@
-# COVID-19 SIR Modeling
 
 <!-- Introduction -->
 ## Introduction
@@ -15,7 +14,7 @@ than the basic SIR model, since death data to fit directly to estimate the param
   In addition to the obvious intrigue of exploring the nature of pandemics, this project is also intended as a personal 
 learning project since it will serve as the first exposure to differential equation modeling. 
 
-## The Model
+### The Model
 
 
 ![equation](http://www.sciweavers.org/free-online-latex-equation-editor)
