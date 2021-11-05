@@ -1,7 +1,3 @@
-*** Currently none of the equations are displying correctly, the links the images of the equations are emmbedded in are correct but GITHUB Camo does not want to update its (or receive?) cache for the image ***
-
-
-# COVID19_SIR
 
 <!-- Introduction -->
 ## Introduction
