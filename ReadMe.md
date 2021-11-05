@@ -1,7 +1,3 @@
-## COVID19_SIR
-The COVID19_SIR project is a mathematical modeling project for the spread of COVID-19.  This project aims to explore disease dynamics through a basic epidemiological compartmental model known as the Survival Infectious
-Recovered Deceased model, or SIRD for short. 
-
 
 <!-- Introduction -->
 ## Introduction
